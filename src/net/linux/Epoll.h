@@ -4,13 +4,12 @@
 #include <sys/epoll.h>
 #include "net/Channel.h"
 #include "net/ThreadPool.h"
-#include "net/NonCopyable.h"
 
 namespace hwnet {
 
 class Poller;
 
-class Epoll : public NonCopyable {
+class Epoll {
 
 public:
 	explicit Epoll():epfd(-1),events(nullptr),maxevents(0) {
@@ -39,7 +38,10 @@ public:
 
 	int  RunOnce();
 
-private:	
+private:
+
+	Epoll(const Epoll&) = delete;
+	Epoll& operator = (const Epoll&) = delete; 	
 
 	int          epfd;
 	epoll_event *events;

@@ -4,13 +4,12 @@
 #include <sys/event.h>
 #include "net/Channel.h"
 #include "net/ThreadPool.h"
-#include "net/NonCopyable.h"
 
 namespace hwnet {
 
 class Poller;
 
-class Kqueue : public NonCopyable {
+class Kqueue {
 
 	static const int readFlag  =  1 << 1;
 	static const int writeFlag =  1 << 2;
@@ -44,6 +43,9 @@ public:
 	int  RunOnce();
 
 private:
+
+	Kqueue(const Kqueue&) = delete;
+	Kqueue& operator = (const Kqueue&) = delete; 	
 
 	int     kfd;
 	struct  kevent *events;

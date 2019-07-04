@@ -1,7 +1,6 @@
 #ifndef _POLLER_H
 #define _POLLER_H
 
-#include "NonCopyable.h"
 #include "net/ThreadPool.h"
 #include "net/Channel.h"
 #include <unordered_map>
@@ -22,7 +21,7 @@
 
 namespace hwnet {
 
-class Poller : public NonCopyable {
+class Poller {
 
 private:
 
@@ -92,6 +91,9 @@ public:
 private:
 
 	void processNotify();
+
+	Poller(const Poller&) = delete;
+	Poller& operator = (const Poller&) = delete; 
 
 	bool poolCreateByNew;
 	ThreadPool  *pool_;

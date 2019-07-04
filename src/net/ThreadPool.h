@@ -9,7 +9,6 @@
 #include <mutex>
 #include <atomic>
 #include <deque>
-#include "net/NonCopyable.h"
 
 
 namespace hwnet {
@@ -24,10 +23,10 @@ public:
 
 
 
-class ThreadPool : public NonCopyable {
+class ThreadPool {
 
 	//任务队列
-	class TaskQueue : public NonCopyable{
+	class TaskQueue {
 
 	public:
 
@@ -44,6 +43,8 @@ class ThreadPool : public NonCopyable {
 		bool Get(taskque &out);
 
 	private:
+		TaskQueue(const TaskQueue&) = delete;
+		TaskQueue& operator = (const TaskQueue&) = delete;
 		bool closed;
 		int  watting;//空闲线程数量
 		std::mutex mtx;
@@ -73,6 +74,9 @@ private:
 
 	static void threadFunc(ThreadPool::TaskQueue *queue_);
 	static void threadFuncSwap(ThreadPool::TaskQueue *queue_);
+
+	ThreadPool(const ThreadPool&) = delete;
+	ThreadPool& operator = (const ThreadPool&) = delete;	
 
 	std::atomic_bool inited;
 	TaskQueue queue_;

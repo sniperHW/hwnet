@@ -7,11 +7,10 @@
 #include <atomic>
 #include "net/Address.h"
 #include "net/Poller.h"
-#include "net/NonCopyable.h"
 
 namespace hwnet {
 
-class TCPConnector :public NonCopyable, public Task, public Channel ,public std::enable_shared_from_this<TCPConnector> {
+class TCPConnector : public Task, public Channel ,public std::enable_shared_from_this<TCPConnector> {
 
 
 public:
@@ -48,6 +47,8 @@ private:
 
 	bool checkError(int &err,ErrorCallback &errcb);
 
+	TCPConnector(const TCPConnector&) = delete;
+	TCPConnector& operator = (const TCPConnector&) = delete;
 	int  fd;
 
 	Addr remoteAddr;
