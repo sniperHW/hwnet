@@ -7,7 +7,9 @@
 #include <condition_variable>
 #include <memory>
 #include <mutex>
+#include "SpinMutex.h"
 #include <atomic>
+#include <deque>
 
 
 namespace hwnet {
@@ -29,6 +31,8 @@ class ThreadPool {
 
 	public:
 
+		typedef std::deque<Task::Ptr> taskque;
+
 		TaskQueue():closed(false),watting(0){}
 
 		void PostTask(const Task::Ptr &task);
@@ -37,6 +41,8 @@ class ThreadPool {
 
 		Task::Ptr Get();
 
+		bool Get(taskque &out);
+
 	private:
 		TaskQueue(const TaskQueue&);
 		TaskQueue& operator = (const TaskQueue&);
@@ -44,14 +50,18 @@ class ThreadPool {
 		int  watting;//空闲线程数量
 		std::mutex mtx;
 		std::condition_variable_any cv;
-		std::list<Task::Ptr> tasks;
+		taskque tasks;
 	};
 
 public:
 
+	static const int SwapMode = 1;
+
 	ThreadPool():inited(false){}
 
-	bool Init(int threadCount = 0);
+	~ThreadPool();
+
+	bool Init(int threadCount = 0,int swapMode = 0);
 
 	void PostTask(const Task::Ptr &task) {
 		queue_.PostTask(task);
@@ -64,6 +74,7 @@ public:
 private:
 
 	static void threadFunc(ThreadPool::TaskQueue *queue_);
+	static void threadFuncSwap(ThreadPool::TaskQueue *queue_);
 
 	ThreadPool(const ThreadPool&);
 	ThreadPool& operator = (const ThreadPool&);	

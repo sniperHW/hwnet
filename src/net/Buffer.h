@@ -3,23 +3,46 @@
 
 #include <stdint.h>
 #include <memory>
-#include <sys/uio.h>
 #include <string.h>
 #include <string>
 
 
 namespace hwnet {
 
+class TCPSocket;
+
 class Buffer {
 
 public:
 
+	friend class TCPSocket;
+
 	typedef std::shared_ptr<Buffer> Ptr;
-	
+
+
+private:
+
+	class bytes {
+	public:
+		typedef std::shared_ptr<bytes> Ptr;
+		char *ptr;
+		explicit bytes(size_t cap) {
+			this->ptr = new char[cap];
+		}
+
+		bytes(bytes &&);
+		bytes(const bytes&);
+		bytes& operator = (const bytes&);
+
+		~bytes() {
+			delete [] this->ptr;
+		}
+	};
+
 public:
 
-	static Buffer::Ptr New(size_t cap) {
-		Buffer *buff_ = new Buffer(cap);
+	static Buffer::Ptr New(size_t cap,size_t len = 0) {
+		Buffer *buff_ = new Buffer(cap,len);
 		if(buff_) {
 			return Ptr(buff_);
 		} else {
@@ -44,33 +67,83 @@ public:
 		return New(str.c_str(),str.size());
 	}
 
-	std::string ToString() {
-		return std::string(this->buff,this->len);
+	//类似go的[n:m]操作
+	static Buffer::Ptr New(const Buffer::Ptr &o,size_t s,size_t e) {
+
+		if(s >= o->len) return nullptr;
+		if(s >= e) return nullptr;
+		if(e > o->len) return nullptr;
+
+		Buffer *buff_ = new Buffer;
+		buff_->buff = o->buff;
+		buff_->b = s;
+		buff_->cap = o->cap - s;
+		buff_->len = e - s;
+		return Ptr(buff_);
 	}
 
-	void Append(char *ptr,size_t len) {
-		if(ptr && len > 0) {
-			auto need = this->len + len;
+	std::string ToString() {
+		return std::string(this->buff->ptr + this->b,this->len);
+	}
+
+	void Copy(size_t s,const char *ptr,size_t l) {
+		if(!ptr || l == 0) {
+			return;
+		}
+
+		if(s > this->len) {
+			return;
+		}
+
+		size_t newcap = s + l;
+		if(newcap < this->len) {
+			//overflow
+			return;
+		}
+
+		if(newcap != this->cap) {
+			//扩容
+			bytes::Ptr newbuff = bytes::Ptr(new bytes(newcap));
+			if(s > 0){
+				memcpy(newbuff->ptr,this->buff->ptr + this->b,s);
+			}
+			this->cap = newcap;
+			this->buff = newbuff;
+			this->b = 0;			
+		}
+
+		memcpy(this->buff->ptr + this->b + s , ptr , l);
+		this->len = s + l;			
+
+	}
+
+	void Append(const std::string &s) {
+		Append(s.c_str(),s.size());
+	}
+
+	void Append(const Buffer::Ptr &o) {
+		Append(o->BuffPtr(),o->Len());
+	}
+
+	void Append(const char *ptr,size_t l) {
+		if(ptr && l > 0) {
+			auto need = this->len + l;
 			if(need < this->len) {
 				//overflow
 				return;
 			}
 
-			if(need > cap) {
-				char *newbuff = (char*)realloc((void*)this->buff,need);
-
-				if(!newbuff) {
-					return;
-				}
-
-				if(this->buff != newbuff){
-					this->buff = newbuff;
-				}
-				this->cap = need;
+			if(need > this->cap) {
+				//扩容
+				size_t cap_ = need;
+				bytes::Ptr newbuff = bytes::Ptr(new bytes(cap_)); 
+				memcpy(newbuff->ptr,this->buff->ptr + this->b,this->len);
+				this->cap = cap_;
+				this->buff = newbuff;
+				this->b = 0;
 			}
-
-			memcpy(this->buff+this->len,ptr,len);
-			this->len += len;
+			memcpy(this->buff->ptr + this->len + this->b , ptr , l);
+			this->len += l;			
 		}
 	}	
 
@@ -83,41 +156,36 @@ public:
 	}
 
 	char* BuffPtr() const {
-		return this->buff;
-	}
-
-	//internal user only
-	void PrepareRecv(iovec &vec) {
-		vec.iov_len  = this->cap;
-		vec.iov_base = this->buff;
-	}
-
-	void RecvFinish(size_t len) {
-		this->len = len;
+		return this->buff->ptr + this->b;
 	}
 
 	~Buffer() {
-		if(this->buff) {
-			free(this->buff);
-			this->buff = nullptr;
-		}
+		this->buff = nullptr;
 	}
 
 private:
 
-	Buffer(size_t cap):len(0){
-		if(cap < 64) {
-			cap = 64;
+	Buffer(size_t cap_,size_t l):b(0),len(0){
+		if(cap_ < 16) {
+			cap_ = 16;
 		}
-		this->buff = (char*)malloc(cap);
-		this->cap  = cap;
+		
+		if(l > cap_) {
+			l = cap_;
+		}
+
+		this->buff = bytes::Ptr(new bytes(cap_));
+		this->cap  = cap_;
+		this->len  = l;
 	}
+
+	Buffer():b(0),len(0),cap(0){}
 
 	Buffer(const Buffer&);
 	Buffer& operator = (const Buffer&); 	
 
-private:
-	char  			*buff;
+	bytes::Ptr       buff;
+	size_t           b;
 	size_t 			 len;
 	size_t 			 cap;
 };

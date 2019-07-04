@@ -16,7 +16,7 @@ class Kqueue {
 	static const int errorFlag =  1 << 3;
 
 public:
-	Kqueue(Poller *poller_):poller_(poller_),kfd(-1),events(nullptr),maxevents(0) {
+	explicit Kqueue(Poller *poller_):poller_(poller_),kfd(-1),events(nullptr),maxevents(0) {
 
 	}
 
@@ -36,22 +36,20 @@ public:
 
 	bool Init();
 
-	void Add(const Channel::Ptr &channel);
+	void Add(const Channel::Ptr &channel,int flag);
 
 	void Remove(const Channel::Ptr &channel);
 
-	void Run();
+	int  RunOnce();
 
-	//void Stop();
-
-protected:
+private:
 
 	Kqueue(const Kqueue&);
 	Kqueue& operator = (const Kqueue&); 	
 
 	Poller *poller_;
 	int     kfd;
-	struct kevent *events;
+	struct  kevent *events;
 	int     maxevents;
 };
 

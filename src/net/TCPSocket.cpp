@@ -4,25 +4,130 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include "temp_failure_retry.h"
+#include <stdio.h>
+#include <iostream>
+#include <stdio.h>
 
 namespace hwnet {
 
-TCPSocket::TCPSocket(Poller *poller_,int fd):fd(fd),err(0),writeCompleteCallback_(nullptr),
+
+class sendContextPool {
+
+public:
+
+	static const int poolCount = 257;
+	static const int itemCount = 10000; 
+
+	class pool {
+	
+	public:
+		pool():count(0),head(nullptr){}
+
+		~pool(){
+			while(nullptr != this->head){
+				auto c = this->head;
+				this->head = c->next;
+				free((void*)c);
+			}
+		}
+		std::mutex mtx;
+		int count;
+		TCPSocket::sendContext *head;
+	};
+
+	TCPSocket::sendContext* get(int fd,const Buffer::Ptr &buff,size_t len) {
+		auto index = fd%poolCount;
+		pool &p = this->pools[index]; 
+		std::lock_guard<std::mutex> guard(p.mtx);
+		if(nullptr == p.head) {
+			auto m = malloc(sizeof(TCPSocket::sendContext));
+			auto s = new(m)TCPSocket::sendContext(buff,len);
+			s->poolIndex = index;
+			return s;
+		} else {
+			--p.count;
+			auto s = p.head;
+			p.head = p.head->next;
+			s = new(s)TCPSocket::sendContext(buff,len);
+			s->poolIndex = index;
+			return s;
+		}
+	}	
+
+	void put(TCPSocket::sendContext *s) {
+		auto index = s->poolIndex;
+		pool &p = this->pools[index]; 
+		std::lock_guard<std::mutex> guard(p.mtx);
+		s->~sendContext();		
+		if(p.count < itemCount){
+			p.count++;
+			if(nullptr != p.head){
+				s->next = p.head->next;
+			}
+			p.head = s;
+		} else {
+			free((void*)s);
+		}
+	}
+
+	pool pools[poolCount];
+
+};
+
+static sendContextPool sContextPool;
+
+
+TCPSocket::sendContext* TCPSocket::getSendContext(int fd,const Buffer::Ptr &buff,size_t len) {
+	return sContextPool.get(fd,buff,len);
+}
+
+void TCPSocket::putSendContext(TCPSocket::sendContext *s) {
+	sContextPool.put(s);	
+}
+
+TCPSocket::TCPSocket(Poller *poller_,int fd):fd(fd),err(0),flushCallback_(nullptr),
 	errorCallback_(nullptr),closeCallback_(nullptr),readable(false),readableVer(0),writeable(false),
-	writeableVer(0),closed(false),shutdown(false),doing(false),socketError(false),poller_(poller_),
-	bytes4Send(0),highWaterSize(0) {
-	int flags;
-    flags = fcntl(fd, F_GETFL, 0);
-    flags |= O_NONBLOCK;
-    fcntl(fd, F_SETFL, flags);
+	writeableVer(0),closed(false),closedOnFlush(false),shutdown(false),doing(false),socketError(false),poller_(poller_),
+	bytes4Send(0),highWaterSize(0),pool_(nullptr),started(false){
+		slistIdx = 0;
+		ptrSendlist = &sendLists[slistIdx];
+
+#ifdef GATHER_RECV
+		rlistIdx = 0;
+		ptrRecvlist = &recvLists[rlistIdx];		
+#endif
+
+	}
+
+
+TCPSocket::TCPSocket(Poller *poller_,ThreadPool *pool_,int fd):fd(fd),err(0),flushCallback_(nullptr),
+	errorCallback_(nullptr),closeCallback_(nullptr),readable(false),readableVer(0),writeable(false),
+	writeableVer(0),closed(false),closedOnFlush(false),shutdown(false),doing(false),socketError(false),poller_(poller_),
+	bytes4Send(0),highWaterSize(0),pool_(pool_),started(false){
+		slistIdx = 0;
+		ptrSendlist = &sendLists[slistIdx];		
+#ifdef GATHER_RECV
+		rlistIdx = 0;
+		ptrRecvlist = &recvLists[rlistIdx];		
+#endif		
+	}
+
+
+TCPSocket::~TCPSocket() {
+	::close(this->fd);	
+	printf("~TCPSocket\n");
 }
 
 void TCPSocket::Do() {
+	static const int maxLoop = 10;
 	auto doClose = false;	
-	for( ; ; ) {
+	this->tid = std::this_thread::get_id();
+	auto i = 0;
+	for( ;;i++) {
 		this->mtx.lock();
-		auto closed = this->closed.load();
-		if(!(canRead() || canWrite()) || closed) {
+		auto canRead_ = canRead();
+		auto canWrite_ = canWrite();
+		if(!(canRead_ || canWrite_) || this->closed) {
 			if(!closed) {
 				this->doing =false;
 			} else {
@@ -32,63 +137,139 @@ void TCPSocket::Do() {
 			if(doClose){
 				this->doClose();
 			}
+			this->tid = std::thread::id();
 			return;
 		}
 		this->mtx.unlock();
-		recvInWorker();
-		sendInWorker();
-	}
-}
-
-void TCPSocket::Recv(const Buffer::Ptr &buff,const RecvCallback& callback) {
-	if(buff == nullptr || callback == nullptr) {
-		return;
-	}
-	if(closed.load() == false) {
-		auto post = false;
-		this->mtx.lock();
-		recvList.push_back(recvReq(buff,callback));
-		if(!this->doing && this->readable) {
-			this->doing = true;
-			post = true;	
-		}
-		this->mtx.unlock();
-		if(post) {			
-			poller_->PostTask(shared_from_this());
+		if(i >= maxLoop){
+			//执行次数过多了，暂停一下，将cpu让给其它任务执行
+			this->tid = std::thread::id();
+			poller_->PostTask(shared_from_this(),this->pool_);
+			return;
+		} else {
+			if(canRead_){
+				recvInWorker();
+			}
+			if(canWrite_){
+				sendInWorker();
+			}
 		}
 	}
 }
 
-void TCPSocket::Send(const char *str,size_t len) {
-	this->Send(Buffer::New(str,len));
-}
-
-void TCPSocket::Send(const std::string &str) {
-	this->Send(Buffer::New(str));
-}
-
-void TCPSocket::Send(const Buffer::Ptr &buff) {
+void TCPSocket::Recv(const Buffer::Ptr &buff) {
 	if(buff == nullptr) {
 		return;
 	}
-	if(closed.load() == false && shutdown.load() == false) {
-		auto post = false;
-		this->mtx.lock();
-		if(this->bufferProcessFunc_){
-			sendList.push_back(buff);
+
+	if(buff->Len() == 0) {
+		return;
+	}
+
+	auto post = false;
+	{
+
+
+		if(std::this_thread::get_id() == this->tid){
+			if(this->closed) {
+				return;
+			}
+
+			if(this->recvCallback_ == nullptr) {
+				return;
+			}
+#ifdef GATHER_RECV
+			ptrRecvlist->push_back(buff);
+#else
+			recvList.push_back(buff);
+#endif
+			if(!this->doing && this->readable) {
+				this->doing = true;
+				post = true;
+			}
 		} else {
-			localSendList.push_back(sendContext(buff));
-		}
-		this->bytes4Send += buff->Len();
-		if(!this->doing && (this->writeable || this->highWater())) {
-			this->doing = true;
-			post = true;	
-		}
-		this->mtx.unlock();
-		if(post) {
-			poller_->PostTask(shared_from_this());
+
+			std::lock_guard<std::mutex> guard(this->mtx);
+			if(this->closed) {
+				return;
+			}
+
+			if(this->recvCallback_ == nullptr) {
+				return;
+			}
+
+#ifdef GATHER_RECV
+			ptrRecvlist->push_back(buff);
+#else
+			recvList.push_back(buff);
+#endif
+			if(!this->doing && this->readable) {
+				this->doing = true;
+				post = true;
+			}		
 		}
 	}
+	if(post) {			
+		poller_->PostTask(shared_from_this(),this->pool_);
+	}
+}
+
+void TCPSocket::Send(const char *str,size_t len,bool closedOnFlush_) {
+	this->Send(Buffer::New(str,len),0,closedOnFlush_);
+}
+
+void TCPSocket::Send(const std::string &str,bool closedOnFlush_) {
+	this->Send(Buffer::New(str),0,closedOnFlush_);
+}
+
+void TCPSocket::Send(const Buffer::Ptr &buff,size_t len,bool closedOnFlush_) {
+	if(buff == nullptr) {
+		return;
+	}
+
+	if(len == 0) {
+		len = buff->Len();
+	}
+
+	if(len == 0) {
+		return;
+	}
+
+	auto post = false;
+	{
+		if(std::this_thread::get_id() == this->tid){
+			if(this->closed || this->shutdown || this->closedOnFlush) {
+				return;
+			}
+
+			this->closedOnFlush = closedOnFlush_;
+
+			this->ptrSendlist->push_back(getSendContext(this->fd,buff,len));
+			this->bytes4Send += len;
+			if(!this->doing && (this->writeable || this->highWater())) {
+				this->doing = true;
+				post = true;
+			}
+		} else {
+			std::lock_guard<std::mutex> guard(this->mtx);
+			if(this->closed || this->shutdown || this->closedOnFlush) {
+				return;
+			}
+
+			this->closedOnFlush = closedOnFlush_;
+
+			this->ptrSendlist->push_back(getSendContext(this->fd,buff,len));
+			this->bytes4Send += len;
+			if(!this->doing && (this->writeable || this->highWater())) {
+				this->doing = true;
+				post = true;
+			}		
+		}
+	}
+	if(post) {
+		poller_->PostTask(shared_from_this(),this->pool_);
+	}	
+
 }
 
 void TCPSocket::OnActive(int event) {
@@ -122,249 +303,354 @@ void TCPSocket::OnActive(int event) {
 	this->mtx.unlock();
 
 	if(post) {
-		poller_->PostTask(shared_from_this());
+		poller_->PostTask(shared_from_this(),this->pool_);
 	}
 }
 
-
 void TCPSocket::sendInWorker() {
-
+	
 	auto t = 0;
 
-	WriteCompleteCallback *writeCompleteCallback = nullptr;
+	FlushCallback flushCallback = nullptr;
 	ErrorCallback errorCallback = nullptr;
 	HighWaterCallback highWaterCallback = nullptr;
-	size_t bytes4Send = 0;
+	size_t bytes4Send_ = 0;
+	auto closedOnFlush_ = false;
+
 
 	this->mtx.lock();
 
-	do{
-		if(!this->canWrite())
-			break;
-
+	
+	if(!this->canWrite()){
+		this->mtx.unlock();
+		return; 
+	} else {
 		if(!this->writeable && this->highWater()) {
 			t = 1;
-			bytes4Send = this->bytes4Send;
+			bytes4Send_ = this->bytes4Send;
 			highWaterCallback = this->highWaterCallback_;
-			break;
-		}
-
-		if(this->bufferProcessFunc_ && !this->sendList.empty()){
-			auto it = sendList.begin();
-			for( ; it != sendList.end(); ++it){
-				auto oldLen = (*it)->Len();
-				//这里可能会执行耗时的压缩加密工作，所以先释放锁
-				this->mtx.unlock();
-				(*it) = this->bufferProcessFunc_((*it));
-				this->mtx.lock();
-				//bufferProcessFunc可能会改变待发送数据的大小
-				if(oldLen > (*it)->Len()){
-					//数据被压缩了需要减小bytes4Send
-					this->bytes4Send -= (oldLen - (*it)->Len());
-				}else if(oldLen < (*it)->Len()){
-					//数据变大了需要增加bytes4Send
-					this->bytes4Send += ((*it)->Len() - oldLen);
-				}
-				localSendList.push_back(sendContext(*it));
-			}
-			sendList.clear();
-		}
-
-		auto it  = localSendList.begin();
-		auto end = localSendList.end();
-		auto c   = 0;
-		for( ; it != end && c < max_send_iovec_size; ++it,++c) {
-			send_iovec[c].iov_len = (*it).len;
-			send_iovec[c].iov_base = (*it).ptr;
-		}
-		auto localVer = this->writeableVer;
-		this->mtx.unlock();
-		int n = TEMP_FAILURE_RETRY(::writev(this->fd,&this->send_iovec[0],c));
-		this->mtx.lock();
-		if(n >= 0) {
-			for(auto i = 0; i < c && !localSendList.empty(); ++i) {
-				auto front = localSendList.front();
-				auto len = 0;
-				if(n >= (int)this->send_iovec[i].iov_len) {
-					len = this->send_iovec[i].iov_len;
-				} else {
-					len = n;
-				}
-
-				front.ptr += len;
-				front.len -= len;
-				this->bytes4Send -= len;
-				if(front.len == 0) {
-					localSendList.pop_front();
-				} else {
-					break;
-				}
-			}
-
-			if(localSendList.empty()){
-				if(this->shutdown.load()){
-					::shutdown(this->fd,SHUT_WR);
-				}
-				if(this->writeCompleteCallback_) {
-					writeCompleteCallback = &this->writeCompleteCallback_;
-					t = 2;
-				}
-			}		
 		} else {
-			if(errno == EAGAIN) {
-				if(this->writeableVer == localVer) {
+			auto localSendlist = this->ptrSendlist;
+			auto localVer = this->writeableVer;
+			this->slistIdx = this->slistIdx == 0 ? 1 : 0;
+			this->ptrSendlist = &this->sendLists[this->slistIdx]; 
+
+			this->mtx.unlock();
+
+			auto c   = 0;
+			auto totalBytes = 0;
+			auto cur =  localSendlist->head;
+			for( ; cur != nullptr && c < max_send_iovec_size; cur = cur->next,++c) {
+				send_iovec[c].iov_len = cur->len;
+				send_iovec[c].iov_base = cur->ptr;
+				totalBytes += cur->len;			
+			}
+
+			int n = TEMP_FAILURE_RETRY(::writev(this->fd,&this->send_iovec[0],c));
+
+			if(n >= totalBytes && cur == nullptr){
+				localSendlist->clear();
+			}
+
+			this->mtx.lock();
+
+			closedOnFlush_ = this->closedOnFlush;
+
+			if(n >= 0) {
+				if(n > 0 && (n < totalBytes || cur != nullptr)) {
+					//部分发送
+					size_t nn = (size_t)n;
+					for( ; ; ) {
+						auto front = localSendlist->front();
+						if(nn >= front->len) {
+							nn -= front->len;
+							localSendlist->pop_front();
+						} else {
+							front->ptr += nn;
+							front->len -= nn;
+							break;
+						}
+					}
+					this->ptrSendlist->add_front(localSendlist);
+				}
+
+				this->bytes4Send -= n;
+				if(this->ptrSendlist->empty()){
+					if(this->shutdown){
+						::shutdown(this->fd,SHUT_WR);
+					}
+					if(this->flushCallback_) {
+						flushCallback = this->flushCallback_;
+						t = 2;
+					}
+				}
+
+				if(n < totalBytes && this->writeableVer == localVer) {
 					this->writeable = false;
 				}
+
 			} else {
-				errorCallback = this->errorCallback_;
-				t = 3;
+				if(n < 0 && errno == EAGAIN) {
+					this->ptrSendlist->add_front(localSendlist);
+					if(this->writeableVer == localVer) {
+						this->writeable = false;
+					}
+				} else {
+					if(!this->closed){
+						errorCallback = this->errorCallback_;
+						this->socketError = true;
+						this->err = errno;
+						t = 3;
+					}
+				}
 			}
 		}
+	}
 
-	}while(0);
 
 	this->mtx.unlock();
 
 	switch(t){
 		case 1:{
 			if(highWaterCallback){
-				highWaterCallback(shared_from_this(),bytes4Send);
+				auto self = shared_from_this();
+				highWaterCallback(self,bytes4Send_);
 			}			
 		}
 		break;
 		case 2:{
-			if(writeCompleteCallback){
-				(*writeCompleteCallback)(shared_from_this());
+			if(flushCallback){
+				auto self = shared_from_this();
+				flushCallback(self);
+			}
+			if(closedOnFlush_){
+				this->Close();
 			}			
 		}
 		break;
 		case 3:{
 			if(errorCallback) {
-				errorCallback(shared_from_this(),err);
+				auto self = shared_from_this();
+				errorCallback(self,err);
 			} else {
 				this->Close();
 			}				
 		}
 		break;
 		default:{
+			if(closedOnFlush_) {
+				this->Close();
+			}
 			return;
 		}
-		break;
 	}
 }
 
+
+#ifdef GATHER_RECV
 void TCPSocket::recvInWorker() {
+
 	ErrorCallback errorCallback = nullptr;
-	auto t = 0;
-	std::list<recvReq> okList;
+	RecvCallback  recvCallback  = nullptr;
+	auto getError 				= false;
+	auto self 					= shared_from_this();
 	this->mtx.lock();
-	do{
-		if(!this->canRead())
-			break;	
-
-		if(this->socketError){
-			t = 1;
-			errorCallback = this->errorCallback_;
-			errno = this->err;
-			break;
-		}
-
-		auto it  = recvList.begin();
-		auto end = recvList.end();
-		auto c   = 0;
-		for( ; it != end && c < max_recv_iovec_size; ++it,++c) {
-			(*it).buff->PrepareRecv(recv_iovec[c]);
-		}
-		auto localVer = this->readableVer;
+	recvCallback = this->recvCallback_;
+	
+	if(!this->canRead()){
 		this->mtx.unlock();
-		int n = TEMP_FAILURE_RETRY(::readv(this->fd,&this->recv_iovec[0],c));
-		this->mtx.lock();		
-		if(n > 0) {
-			for(auto i = 0; i < c && n > 0 ; ++i) {
-				auto front = recvList.front();
-				auto len = 0;
-				if(n > (int)this->recv_iovec[i].iov_len) {
-					len = this->recv_iovec[i].iov_len;
-				} else {
-					len = n;
-				}
-				front.buff->RecvFinish(len);
-				n -= len;
-				okList.push_back(front);
-				recvList.pop_front();
+	} else {
+		if(this->socketError){
+			errorCallback = this->errorCallback_;
+			this->mtx.unlock();
+			getError = true;
+		} else {	
+			auto localRecvlist = this->ptrRecvlist;
+		
+			auto localVer = this->readableVer;
+
+			this->rlistIdx = this->rlistIdx == 0 ? 1 : 0;
+			this->ptrRecvlist = &this->recvLists[this->rlistIdx]; 
+
+			this->mtx.unlock();		
+
+
+			auto c   = 0;
+			auto totalBytes = 0;
+			auto it = localRecvlist->begin();
+			auto end = localRecvlist->end();
+			for(; it != end; it++) {
+				recv_iovec[c].iov_len = (*it)->Len();
+				recv_iovec[c].iov_base = (*it)->BuffPtr();
+				totalBytes += (*it)->Len();
+				c++;		
 			}
-			t = 2;
-		} else {
-			if(errno == EAGAIN) {
-				if(localVer == this->readableVer) {
-					this->readable = false;
-				}
+
+
+			int n = TEMP_FAILURE_RETRY(::readv(this->fd,&this->recv_iovec[0],c));
+
+			if(n > 0) {
+					size_t nn = (size_t)n;
+					for( ; nn > 0 ; ) {
+						auto front = localRecvlist->front();
+						auto s = front->Len();
+						s = nn >= s ? s : nn;
+						nn -= s;
+						localRecvlist->pop_front();
+						if(recvCallback){
+							recvCallback(self,front,s);	
+							if(this->closed || this->shutdown) {
+								return;
+							}				
+						}					
+					}
+
+					this->mtx.lock();
+
+					for( ; !localRecvlist->empty(); ) {
+						auto back = localRecvlist->back();
+						this->ptrRecvlist->push_front(back);
+						localRecvlist->pop_back();
+					}
+
+					if(n != totalBytes) {
+						if(localVer == this->readableVer) {
+							this->readable = false;
+						}					
+					}
+
+					this->mtx.unlock();
+
 			} else {
-				t = 1;
-				errorCallback = this->errorCallback_;	
+				this->mtx.lock();
+				if(n < 0 && errno == EAGAIN) {
+					for( ; !localRecvlist->empty(); ) {
+						auto back = localRecvlist->back();
+						this->ptrRecvlist->push_front(back);
+						localRecvlist->pop_back();
+					}										
+					if(localVer == this->readableVer) {
+						this->readable = false;
+					}
+				} else {
+					getError = true;
+					this->err = errno;
+					this->socketError = true;
+					errorCallback = this->errorCallback_;	
+				}
+				this->mtx.unlock();			
 			}
 		}
-	}while(0);
-	this->mtx.unlock();
 
-	switch(t){
-		case 1:{
+
+		if(getError) {
 			if(errorCallback) {
-				errorCallback(shared_from_this(),err);
+				errorCallback(self,err);
 			} else {
 				this->Close();
-			}	
+			}		
 		}
-		break;
-		case 2:{
-			for(auto it = okList.begin(); it != okList.end(); ++it) {
-				if((*it).recvCallback_){
-					(*it).recvCallback_(shared_from_this(),(*it).buff);
-					if(closed.load() == true){
-						//在回调中调用了Close,不再调用回调
-						return;
-					}
-				}
-			}			
-		}
-		break;
-		default:{
-			return;
-		}
-		break;
+
 	}
 }
 
-void TCPSocket::Shutdown() {
-	if(this->closed.load() == true) {
-		return;
+#else
+
+void TCPSocket::recvInWorker() {
+
+	ErrorCallback errorCallback = nullptr;
+	RecvCallback  recvCallback  = nullptr;
+	auto getError 				= false;
+	auto self 					= shared_from_this();
+	this->mtx.lock();
+	recvCallback = this->recvCallback_;
+	
+	if(!this->canRead()){
+		this->mtx.unlock();
+	} else {
+		if(this->socketError) {
+			errorCallback = this->errorCallback_;
+			this->mtx.unlock();
+			getError = true;
+		} else {		
+			auto front = recvList.front();
+			recvList.pop_front();
+			auto localVer = this->readableVer;
+			this->mtx.unlock();
+			int n = TEMP_FAILURE_RETRY(::read(this->fd,front->BuffPtr(),front->Len()));
+			if(n > 0) { 
+				if(recvCallback){
+					recvCallback(self,front,n);			
+				}
+				if(size_t(n) < front->Len()) {
+					this->mtx.lock();
+					if(localVer == this->readableVer) {
+						this->readable = false;
+					}
+					this->mtx.unlock();
+				}
+			} else {
+				this->mtx.lock();
+				if(n < 0 && errno == EAGAIN) {					
+					recvList.push_front(front);
+					if(localVer == this->readableVer) {
+						this->readable = false;
+					}
+				} else {
+					getError = true;
+					this->err = errno;
+					this->socketError = true;
+					errorCallback = this->errorCallback_;	
+				}
+				this->mtx.unlock();			
+			}
+		}
+
+		if(getError) {
+			if(errorCallback) {
+				errorCallback(self,err);
+			} else {
+				this->Close();
+			}		
+		}
 	}
-	bool expected = false;
-	if(!this->shutdown.compare_exchange_strong(expected,true)) {
+}
+
+#endif
+
+void TCPSocket::Shutdown() {
+
+	std::lock_guard<std::mutex> guard(this->mtx);
+	if(this->closed || this->shutdown) {
 		return;
 	}
 
-	this->mtx.lock();
-	if(this->sendList.empty()){
+	this->shutdown = true;
+
+	if(this->ptrSendlist->empty()){
 		::shutdown(this->fd,SHUT_WR);
 	}
-	this->mtx.unlock();	
 }
 
 void TCPSocket::Close() {
-	this->mtx.lock();
-	bool expected = false;
-	if(!this->closed.compare_exchange_strong(expected,true)) {
-		this->mtx.unlock();
-		return;
-	}
-	poller_->Remove(shared_from_this());	
-	::close(fd);
+	
+	auto post = false;
+	{	
+		std::lock_guard<std::mutex> guard(this->mtx);
+		if(this->closed) {
+			return;
+		}
+		this->closed = true;
+		::shutdown(this->fd,SHUT_RDWR);
+		poller_->Remove(shared_from_this());	
 
-	if(closeCallback_ && !this->doing){
-		poller_->PostTask(shared_from_this());
+		if(this->closeCallback_ && !this->doing){
+			post = true;
+		}
 	}
-	this->mtx.unlock();
+	if(post) {
+		poller_->PostTask(shared_from_this(),this->pool_);
+	}	
 }
 
 void TCPSocket::doClose() {
@@ -374,11 +660,37 @@ void TCPSocket::doClose() {
 		if(closeCallback_){
 			callback = closeCallback_;
 		}
+		sendLists[0].clear();
+		sendLists[1].clear();
 	}
 
 	if(callback) {
-		callback(shared_from_this());
+		auto self = shared_from_this();
+		callback(self);
 	}
+}
+
+
+const Addr& TCPSocket::RemoteAddr() const {
+	std::lock_guard<std::mutex> guard(this->mtx);	
+	if(!this->remoteAddr.IsVaild()) {
+		socklen_t len = sizeof(this->remoteAddr);
+		if(0 == ::getpeername(this->fd,this->remoteAddr.Address(),&len)) {
+			this->remoteAddr = Addr::MakeBySockAddr(this->remoteAddr.Address(),len);
+		}		
+	}
+	return this->remoteAddr;
+}
+
+const Addr& TCPSocket::LocalAddr() const {
+	std::lock_guard<std::mutex> guard(this->mtx);	
+	if(!this->localAddr.IsVaild()) {
+		socklen_t len = sizeof(this->localAddr);
+		if(0 == ::getsockname(this->fd,this->localAddr.Address(),&len)) {
+			this->localAddr = Addr::MakeBySockAddr(this->localAddr.Address(),len);
+		}		
+	}
+	return this->localAddr;	
 }
 
 }

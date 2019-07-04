@@ -1,0 +1,43 @@
+language: cpp
+sudo: required
+dist: trusty
+
+common_sources: &all_sources
+  - ubuntu-toolchain-r-test
+
+matrix:
+  include:
+    - os: linux
+      addons: &gcc7
+        apt:
+          sources: *all_sources
+          packages: ['g++-7']
+        #sonarcloud
+        sonarcloud:
+          organization: "sniperhw-github"
+          token: 
+            secure: "HkANTTKULuzUqYZqkLNePe18k81p1oqAW+vO5wqomI1FbHRdWPdprxg5JDwzss0/w4XPPRJpJ9hoeOo6Vdw+QFUb61Ej+Gep/20Id/pgVPvwqgIlO5ksgsFCPeuN3DZoE0xIU3E1yq3y3QebhaHXzVRWI0N3071zPgrNclEBGJcChX6G4ugSdNYmxKD5w763FZjFbd8Dfey1LKLJhCvX47zuhHPwYRO+wl8rkRCQW/e2mfBbPxhMCSnvNcTjjiFTohUbZAX1nKmQqzDH9ZyHzjbaYBqfG5oS7u60OH9tY0EztB6HLsj9GyonE0sgrdggjSmSZb8XuQJckvGizEdwFwoe9GXt7DdymaYIhR7Qi4A/q7s7lGGBJztHDvvI7AJizLHr+n0b+9Ij6FKGeoK8rTv0n5LtnPikbpDal38ytRB8FmdNX3gzF0z0CJU57TG7W4NKYlt0Z6CnqUnu3a/wC83uezuBK9kRtBY7iM3PSRTQrUW+3YWYrthFtW4X0YBL40kO58uDNwHg4X32WgpoYXWJKSjFLqhslC2AQ7w3DZSvdVSxW0cD2CWy0zr/DvfQZKWTT/hRtMeH3rShYI36UILKbEHR396dMqWnP0EGyTbtw8n3es+MysGgowJuXQUNJSYifADfuBz0bpCdUcRpS7/P+x9rDyL1uWVtSBVbbDk="
+      env: 
+        - MATRIX_EVAL="CC=gcc-7 && CXX=g++-7"
+    - os: osx
+      osx_image: xcode10.14
+      addons:
+        #sonarcloud
+        sonarcloud:
+          organization: "sniperhw-github"
+          token: 
+            secure: "HkANTTKULuzUqYZqkLNePe18k81p1oqAW+vO5wqomI1FbHRdWPdprxg5JDwzss0/w4XPPRJpJ9hoeOo6Vdw+QFUb61Ej+Gep/20Id/pgVPvwqgIlO5ksgsFCPeuN3DZoE0xIU3E1yq3y3QebhaHXzVRWI0N3071zPgrNclEBGJcChX6G4ugSdNYmxKD5w763FZjFbd8Dfey1LKLJhCvX47zuhHPwYRO+wl8rkRCQW/e2mfBbPxhMCSnvNcTjjiFTohUbZAX1nKmQqzDH9ZyHzjbaYBqfG5oS7u60OH9tY0EztB6HLsj9GyonE0sgrdggjSmSZb8XuQJckvGizEdwFwoe9GXt7DdymaYIhR7Qi4A/q7s7lGGBJztHDvvI7AJizLHr+n0b+9Ij6FKGeoK8rTv0n5LtnPikbpDal38ytRB8FmdNX3gzF0z0CJU57TG7W4NKYlt0Z6CnqUnu3a/wC83uezuBK9kRtBY7iM3PSRTQrUW+3YWYrthFtW4X0YBL40kO58uDNwHg4X32WgpoYXWJKSjFLqhslC2AQ7w3DZSvdVSxW0cD2CWy0zr/DvfQZKWTT/hRtMeH3rShYI36UILKbEHR396dMqWnP0EGyTbtw8n3es+MysGgowJuXQUNJSYifADfuBz0bpCdUcRpS7/P+x9rDyL1uWVtSBVbbDk="
+
+before_script:
+   - eval "${MATRIX_EVAL}"
+   - env
+   - export CC_FOR_BUILD=$CC
+   - export CXX_FOR_BUILD=$CXX
+script:
+  - cmake .
+  #- make
+  #- cmake . -Dbrynet_BUILD_EXAMPLES=ON -Dbrynet_BUILD_TESTS=ON
+  # make
+  - bash ./scripts/travis-compiler.sh
+  - sonar-scanner -X
+  #- cd tests && ctest -V

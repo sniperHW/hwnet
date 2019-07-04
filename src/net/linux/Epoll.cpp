@@ -33,10 +33,24 @@ bool Epoll::Init() {
 	return true;
 }
 
-void Epoll::Add(const Channel::Ptr &channel) {
+void Epoll::Add(const Channel::Ptr &channel,int flag) {
 	epoll_event ev = {0};
 	ev.data.ptr = channel.get();
-	ev.events = EPOLLIN | EPOLLERR | EPOLLHUP | EPOLLRDHUP | EPOLLOUT | EPOLLET,
+
+	if(flag & Poller::addRead) {
+		ev.events |= EPOLLIN;
+	}
+
+	if(flag & Poller::addWrite) {
+		ev.events |= EPOLLOUT;
+	}
+
+	int et = 0;
+	if(flag & Poller::addET) {
+		et = EPOLLET;
+	}
+
+	ev.events |= EPOLLERR | EPOLLHUP | EPOLLRDHUP | et;
 	epoll_ctl(this->epfd,EPOLL_CTL_ADD,channel->Fd(),&ev);
 }
 
@@ -45,30 +59,27 @@ void Epoll::Remove(const Channel::Ptr &channel) {
 	epoll_ctl(epfd,EPOLL_CTL_DEL,channel->Fd(),&ev);
 }
 
-void Epoll::Run() {
+int Epoll::RunOnce() {
 	epoll_event *tmp;
-	for( ; ; ) {
-		auto nfds = TEMP_FAILURE_RETRY(epoll_wait(this->epfd,this->events,this->maxevents,-1));
-		if(nfds > 0) {
-			this->poller_->processBegin();
-			for(auto i=0; i < nfds ; ++i) {
-				epoll_event *event = &events[i];
-				((Channel*)event->data.ptr)->OnActive(event->events);
+	auto nfds = TEMP_FAILURE_RETRY(epoll_wait(this->epfd,this->events,this->maxevents,-1));
+	if(nfds > 0) {
+		for(auto i=0; i < nfds ; ++i) {
+			epoll_event *event = &events[i];
+			((Channel*)event->data.ptr)->OnActive(event->events);
+		}	
+		if(nfds == this->maxevents){
+			this->maxevents <<= 2;
+			tmp = (epoll_event*)realloc(this->events,sizeof(*this->events)*this->maxevents);
+			if(nullptr == tmp) {
+				//log error
+				return -1;
 			}
-			this->poller_->processFinish();
-			if(nfds == this->maxevents){
-				this->maxevents <<= 2;
-				tmp = (epoll_event*)realloc(this->events,sizeof(*this->events)*this->maxevents);
-				if(nullptr == tmp) {
-					//log error
-					return;
-				}
-				this->events = tmp;
-			}			
-		} else {
-			//log error
-			return;
+			this->events = tmp;
 		}
+		return 0;			
+	} else {
+		//log error
+		return -1;
 	}
 }
 

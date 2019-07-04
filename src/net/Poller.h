@@ -3,14 +3,18 @@
 
 #include "ThreadPool.h"
 #include "Channel.h"
-#include <map>
+#include <unordered_map>
 #include <list>
 #include <atomic>
+#include <mutex>
+
 
 #ifdef _LINUX
 #include "linux/Epoll.h"
+#define POLLER Epoll
 #elif _MACOS
 #include "mac/Kqueue.h"
+#define POLLER Kqueue
 #else
 #   error "un support os!" 
 #endif
@@ -19,91 +23,94 @@ namespace hwnet {
 
 class Poller {
 
+private:
 
-#ifdef _LINUX		
-	friend class Epoll;
-#else
-	friend class Kqueue;
-#endif
+	class notifyChannel : public Channel ,public std::enable_shared_from_this<notifyChannel> {
+
+	public:
+
+		typedef std::shared_ptr<notifyChannel> Ptr;
+
+		notifyChannel() {
+
+		}
+
+		bool init(Poller *poller_);
+
+		void notify();
+
+		void OnActive(int event);
+	
+		int  Fd() const {
+			return this->notifyfds[0];
+		}
+
+
+	private:
+		int notifyfds[2];
+	};
 
 public:
-	Poller():running(false),inited(false),poller_(this),processing(false){}
+
+	static const int addRead  = 1 << 1;
+	static const int addWrite = 1 << 2;
+	static const int addET    = 1 << 3;
+
+	Poller():running(false),inited(false),poller_(this),closed(false){}
+
+	~Poller() {
+		if(this->poolCreateByNew){
+			delete this->pool_;
+		}
+	}
 
 	static int  ReadFlag() {
-#ifdef _LINUX		
-		return Epoll::ReadFlag();
-#else
-		return Kqueue::ReadFlag();
-#endif
+		return POLLER::ReadFlag();
 	}
 
 	static int  WriteFlag() {
-#ifdef _LINUX		
-		return Epoll::WriteFlag();
-#else
-		return Kqueue::WriteFlag();		
-#endif
+		return POLLER::WriteFlag();
 	}
 
-	static int  ErrorFlag() {
-#ifdef _LINUX		
-		return Epoll::ErrorFlag();
-#else
-		return Kqueue::ErrorFlag();		
-#endif
+	static int  ErrorFlag() {	
+		return POLLER::ErrorFlag();
 	}
 
-	bool Init(int threadCount);
+	bool Init(ThreadPool *pool = nullptr);
 
-	void Add(const Channel::Ptr &channel);
+	void Add(const Channel::Ptr &channel,int flag);
 
 	void Remove(const Channel::Ptr &channel);
 
-	void PostTask(const Task::Ptr &task);
+	void PostTask(const Task::Ptr &task,ThreadPool *tpool = nullptr);
 
 	void Run();
 
-	//void Stop();
-
-	void processBegin(){
-		this->processing = true;
-	}
-
-	void processFinish();
-
-	bool verify(int fd) {
-		bool ok = false;
-		this->mtx.lock();
-		ok = this->channels.find(fd) != this->channels.end();
-		this->mtx.unlock();
-		return ok;
-	}	
+	void Stop();
 
 private:
 
-	Poller(const Poller&);
-	Poller& operator = (const Poller&); 	
+	void processNotify();
 
-	ThreadPool   pool_;
+	Poller(const Poller&);
+	Poller& operator = (const Poller&); 
+
+	bool poolCreateByNew;
+	ThreadPool  *pool_;
 
 	std::atomic_bool running;
 	std::atomic_bool inited;
 
 	std::mutex   mtx;
-	std::map<int,Channel::Ptr> channels;
+	std::unordered_map<int,Channel::Ptr> channels;
 
+	POLLER       poller_;
 
+	notifyChannel::Ptr notifyChannel_;
 
+	std::list<Channel::Ptr> waitRemove;
 
-#ifdef _LINUX		
-	Epoll        poller_;
-#else
-	Kqueue       poller_;	
-#endif
-
-	bool         processing;
-
-	std::list<int> removeing;
+	std::atomic_bool closed;
 
 };
 

@@ -3,115 +3,265 @@
 
 #include "Buffer.h"
 #include "Poller.h"
+#include "Address.h"
+#include "SocketHelper.h"
+#include "any.h"
 #include <list>
 #include <mutex>
 #include <functional>
+//#include <any>
+#include "SpinMutex.h"
+#include <fcntl.h>
+#include <thread>
 
 namespace hwnet {
 
 class TCPSocket : public Task, public Channel ,public std::enable_shared_from_this<TCPSocket> {
 
+	friend class sendContextPool;
+
 public:
 
 	typedef std::shared_ptr<TCPSocket> Ptr;
+
+	static const bool ClosedOnFlush = true;
 
 public:
 
 	/*
 	*  接收回调，作为Recv的其中一个参数被传入
 	*/
-	typedef std::function<void (TCPSocket::Ptr,Buffer::Ptr &buff)> RecvCallback;
+	typedef std::function<void (TCPSocket::Ptr&,const Buffer::Ptr &buff,size_t n)> RecvCallback;
 	
 	/*
-	*  发送完成回调，当sendList被冲刷完成之后回调
+	*  当sendList全部冲刷完之后回调
 	*/
-	typedef std::function<void (TCPSocket::Ptr)> WriteCompleteCallback;
+	typedef std::function<void (TCPSocket::Ptr&)> FlushCallback;
 
 	/*
 	*  错误回调，当连接出现错误时回调，可根据错误码做适当处理，如果没有设置，当错误出现时将直接调用Close 
 	*/
-	typedef std::function<void (TCPSocket::Ptr,int)> ErrorCallback;
+	typedef std::function<void (TCPSocket::Ptr&,int)> ErrorCallback;
 	
 	/*
 	*  连接关闭回调，连接被销毁前回调，确保只调用一次 
 	*/
-	typedef std::function<void (TCPSocket::Ptr)> CloseCallback;
+	typedef std::function<void (TCPSocket::Ptr&)> CloseCallback;
 
 	/*
 	*  发送阻塞回调，如果设置了highwatersize和callback,当连接不可写，且待发送数据长度超过一定值时被回调
 	*/
-	typedef std::function<void (TCPSocket::Ptr,size_t)> HighWaterCallback;
-	
-	/*
-	*  输入buff处理器,将输入buff转换成输出buff(例如将原始buff加密，压缩)
-	*  注：此处理函数在工作者线程中执行
-	*/
-	typedef std::function<Buffer::Ptr (const Buffer::Ptr &)> BufferProcessFunc;
+	typedef std::function<void (TCPSocket::Ptr&,size_t)> HighWaterCallback;
 
 private:
 
-	class recvReq {
-
-	public:
-		recvReq(Buffer::Ptr buff,const RecvCallback& callback):buff(buff),recvCallback_(callback){
-
-		}
-
-		Buffer::Ptr  buff;
-		RecvCallback recvCallback_;	
-	};
-
 	class sendContext {
 	public:
-		sendContext(Buffer::Ptr buff):buff(buff),ptr(buff->BuffPtr()),len(buff->Len()) {
+
+		sendContext():ptr(nullptr),len(0),next(nullptr){
 
 		}
 
-		sendContext& operator = (const sendContext &o) {
-			if(this != &o){
-				buff = o.buff;
-				ptr  = o.buff->BuffPtr();
-				len  = o.buff->Len();
+		sendContext(const Buffer::Ptr &buff,size_t len = 0):buff(buff),ptr(buff->BuffPtr()),next(nullptr){
+			if(len > 0) {
+				this->len = len;
+			} else {
+				this->len = buff->Len();
 			}
-			return *this;
 		}
+
+		~sendContext(){
+			ptr  = nullptr;
+			len  = 0;
+			next = nullptr;
+		}
+
+		sendContext(const sendContext&);
+		sendContext(sendContext&&);
+		sendContext& operator = (const sendContext&); 
+
 
 		Buffer::Ptr  buff;
 		char        *ptr;
 		size_t       len;
+		sendContext  *next;
+		int          poolIndex;
+	};
+
+	static sendContext* getSendContext(int fd,const Buffer::Ptr &buff,size_t len = 0);
+	static void putSendContext(sendContext*);
+
+	class linklist {
+
+	public:
+		sendContext *head;
+		sendContext *tail;
+
+		linklist():head(nullptr),tail(nullptr){
+		}
+
+		~linklist(){
+			this->clear();
+		}
+
+		linklist(const linklist&);
+		linklist(linklist&&);
+		linklist& operator = (const linklist&);
+
+		sendContext *front() {
+			if(this->head == nullptr) {
+				return nullptr;
+			} else {
+				return this->head;
+			}
+		}
+
+		void pop_front() {
+			if(this->head != nullptr){
+				auto s = this->head;
+				this->head = s->next;
+				if(nullptr == this->head) {
+					this->tail = nullptr;
+				}
+				putSendContext(s);
+			}
+		}
+
+		void push_back(sendContext *s) {
+			if(this->head == nullptr) {
+				this->head = this->tail = s;
+			} else {
+				this->tail->next = s;
+				this->tail = s;
+			}
+		}
+
+		void clear() {
+			if(this->head != nullptr) {
+				auto cur = this->head;
+				while(cur != nullptr){
+					auto c = cur;
+					cur = c->next;
+					putSendContext(c);
+				}
+				this->head = this->tail = nullptr;
+			}		
+		}
+
+		bool empty(){
+			return this->head == nullptr;
+		}
+
+
+		void add_front(linklist *other){
+			if(!other->empty()){
+				if(this->head == nullptr){
+					this->head = other->head;
+					this->tail = other->tail;
+				} else {
+					other->tail->next = this->head;	
+					this->head = other->head;
+				}
+				other->head = other->tail = nullptr;
+			}
+		}
 	};
 
 
 public:
-	static TCPSocket::Ptr New(Poller *poller_,int fd,const CloseCallback &closeCallback = nullptr,const ErrorCallback &errCallback = nullptr) {
-		auto ret = Ptr(new TCPSocket(poller_,fd));
-		ret->mtx.lock();
-		ret->closeCallback_ = closeCallback;
-		ret->errorCallback_ = errCallback;
-		ret->mtx.unlock();
-		poller_->Add(ret);
-		return ret;
+	static TCPSocket::Ptr New(Poller *poller_,int fd){
+		SetNoBlock(fd,true);
+		SetCloseOnExec(fd);
+		return Ptr(new TCPSocket(poller_,fd));
 	}
 
-	void SetBufferProcessFunc(const BufferProcessFunc &func) {
-		std::lock_guard<std::mutex> guard(this->mtx);		
-		bufferProcessFunc_ = func;
+	static TCPSocket::Ptr New(Poller *poller_,ThreadPool *pool_,int fd){
+		SetNoBlock(fd,true);
+		SetCloseOnExec(fd);
+		return Ptr(new TCPSocket(poller_,pool_,fd));
 	}
 
-	void SetHighWater(const HighWaterCallback &callback,size_t highWaterSize){		
+
+	TCPSocket::Ptr SetHighWater(const HighWaterCallback &callback,size_t highWaterSize_){					
 		std::lock_guard<std::mutex> guard(this->mtx);			
-		this->highWaterSize = highWaterSize;
+		this->highWaterSize = highWaterSize_;
 		this->highWaterCallback_ = callback;
+		return shared_from_this();
+	}
+
+	TCPSocket::Ptr SetFlushCallback(const FlushCallback &callback){
+		std::lock_guard<std::mutex> guard(this->mtx);
+		flushCallback_ = callback;
+		return shared_from_this();		
+	}
+
+	TCPSocket::Ptr SetErrorCallback(const ErrorCallback &callback){ 
+		std::lock_guard<std::mutex> guard(this->mtx);
+	    errorCallback_ = callback;
+		return shared_from_this();	    
+	}
+
+	TCPSocket::Ptr SetCloseCallback(const CloseCallback &callback){
+		std::lock_guard<std::mutex> guard(this->mtx);
+	    closeCallback_ = callback;
+		return shared_from_this();	    
+	}
+
+	TCPSocket::Ptr SetRecvCallback(const RecvCallback &callback){
+		std::lock_guard<std::mutex> guard(this->mtx);
+	    recvCallback_ = callback;
+		return shared_from_this();	    
+	}	
+
+	/*
+	 *  将socket添加到poller中,如果需要设置ErrorCallback,务必在Start之前设置。
+	 */
+	TCPSocket::Ptr Start() {
+		bool expected = false;
+		if(this->started.compare_exchange_strong(expected,true)) {
+			this->poller_->Add(shared_from_this(),Poller::addRead | Poller::addWrite | Poller::addET);
+		}
+		return shared_from_this();
 	}
 
 	void Shutdown();
 	
 	void Close();
+
+	bool IsClosed() {
+		std::lock_guard<std::mutex> guard(this->mtx);
+		return this->closed;
+	}
 	
-	void Recv(const Buffer::Ptr &buff,const RecvCallback& callback);
-	void Send(const Buffer::Ptr &buff);
-	void Send(const char *str,size_t len);
-	void Send(const std::string &str);
+	/*
+	 *  recv接收数据时取buff->Len()   
+	 */
+
+	void Recv(const Buffer::Ptr &buff);
+	
+	/*
+	 *  如果len == 0,发送取buff->Len()
+	 */
+	void Send(const Buffer::Ptr &buff,size_t len = 0,bool closedOnFlush = false);
+	
+	void Send(const char *str,size_t len,bool closedOnFlush = false);
+	void Send(const std::string &str,bool closedOnFlush = false);
+
+	const Addr& RemoteAddr() const;
+
+	const Addr& LocalAddr() const;
+
+	const any& GetUserData() const {
+		std::lock_guard<std::mutex> guard(this->mtx);
+		return this->ud;
+	}
+
+
+	TCPSocket::Ptr SetUserData(any ud_) {
+		std::lock_guard<std::mutex> guard(this->mtx);
+		this->ud = ud_;	
+		return shared_from_this();	
+	}
 
 	void OnActive(int event);
 
@@ -121,9 +271,7 @@ public:
 		return fd;
 	}
 
-	~TCPSocket() {
-		printf("~StreamSocket\n");
-	}
+	~TCPSocket();
 
 private:
 
@@ -132,11 +280,16 @@ private:
 	}
 
 	bool canRead() {
+
+#ifdef GATHER_RECV
+		return (readable && !ptrRecvlist->empty()) || socketError;
+#else
 		return (readable && !recvList.empty()) || socketError;
+#endif
 	}
 
 	bool canWrite() {
-		return (writeable && (!sendList.empty() || !localSendList.empty())) || highWater(); 
+		return (!shutdown) && (!closed) && (!socketError) && ((writeable && !this->ptrSendlist->empty()) || highWater()); 
 	}
 
 	void sendInWorker();
@@ -144,38 +297,57 @@ private:
 
 	TCPSocket(Poller *poller_,int fd);
 
+	TCPSocket(Poller *poller_,ThreadPool *pool_,int fd);
+
 	TCPSocket(const TCPSocket&);
 	TCPSocket& operator = (const TCPSocket&); 
 
 	void doClose();
 
-private:
-	static const int       max_recv_iovec_size = 64;
 	static const int       max_send_iovec_size = 128;
-	iovec                  recv_iovec[max_recv_iovec_size];
+	static const int       max_recv_iovec_size = 128;
 	iovec                  send_iovec[max_send_iovec_size];
-	std::list<recvReq>     recvList;
-	std::list<Buffer::Ptr> sendList;
-	std::list<sendContext> localSendList;	
+
+#ifdef GATHER_RECV 
+	iovec                  recv_iovec[max_recv_iovec_size];
+	std::list<Buffer::Ptr> recvLists[2];
+	int                    rlistIdx;
+	std::list<Buffer::Ptr> *ptrRecvlist;
+#else
+	std::list<Buffer::Ptr> recvList;
+#endif
+
+	linklist               sendLists[2];
+	int                    slistIdx;
+	linklist               *ptrSendlist;
 	int 			       fd;
 	int                    err;
-	WriteCompleteCallback  writeCompleteCallback_;
+	FlushCallback          flushCallback_;
 	ErrorCallback          errorCallback_;
 	CloseCallback          closeCallback_;
 	HighWaterCallback      highWaterCallback_;
-	BufferProcessFunc      bufferProcessFunc_;
+	RecvCallback           recvCallback_;
 	bool                   readable;
 	int                    readableVer;	
 	bool                   writeable;
 	int                    writeableVer;
-	std::atomic_bool       closed;
-	std::atomic_bool       shutdown;
+	bool                   closed;
+	bool                   closedOnFlush; //sendlist被清空后关闭连接
+	bool                   shutdown;
 	bool                   doing;
 	bool                   socketError;
 	Poller                *poller_;
-	std::mutex             mtx;
+	mutable std::mutex     mtx;
 	size_t                 bytes4Send;
 	size_t                 highWaterSize;
+	mutable Addr           remoteAddr;
+	mutable Addr           localAddr;
+	ThreadPool             *pool_;
+	any                    ud;
+	std::atomic_bool       started;
+	std::thread::id 	   tid;
+
+
 };
 
 }

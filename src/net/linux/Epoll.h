@@ -12,7 +12,7 @@ class Poller;
 class Epoll {
 
 public:
-	Epoll(Poller *poller_):poller_(poller_),epfd(-1),events(nullptr),maxevents(0) {
+	explicit Epoll(Poller *poller_):poller_(poller_),epfd(-1),events(nullptr),maxevents(0) {
 
 	}
 
@@ -32,15 +32,13 @@ public:
 		return EPOLLERR | EPOLLHUP | EPOLLRDHUP;
 	}
 
-	void Add(const Channel::Ptr &channel);
+	void Add(const Channel::Ptr &channel,int flag);
 
 	void Remove(const Channel::Ptr &channel);
 
-	void Run();
+	int  RunOnce();
 
-	//void Stop();
-
-protected:
+private:
 
 	Epoll(const Epoll&);
 	Epoll& operator = (const Epoll&); 	

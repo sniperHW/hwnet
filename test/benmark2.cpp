@@ -10,13 +10,13 @@
 #include    "net/TCPConnector.h"
 #include 	<time.h>
 #include 	<unistd.h>
+#include    <vector>
 #include <signal.h>
 
 /*
- *       TCPSocket可以由Poller中任意一个空闲线程执行
+ *  TCPSocket可以由创建时传入的pool执行(如果pool只有一个线程即绑定单个线程处理),
  *
  */
-
 
 using namespace hwnet;
 
@@ -24,13 +24,16 @@ std::atomic<std::int64_t>  bytes(0);
 std::atomic_int  count(0);
 std::atomic_bool serverStarted(false);
 std::atomic_int  clientcount(0);
+volatile bool stoped = false;
 
 Poller poller_;
+
+std::vector<ThreadPool*> pools;
 
 int packetSize = 4096;
 
 void show() {
-	for(;;){
+	for(;!stoped;){
 		printf("client:%d packetcount:%d bytes:%d MB/sec\n",clientcount.load(),count.load(),(int)(bytes.load()/1024/1024));
 		bytes.store(0);
 		count.store(0);
@@ -53,21 +56,22 @@ public:
 };
 
 void onDataServer(TCPSocket::Ptr &ss,const Buffer::Ptr &buff,size_t n) {
+	//printf("ondata %d\n",n);
+	bytes += n;
+	count++;
+	ss->Send(buff,n);	
+}
+
+void onDataClient(TCPSocket::Ptr &ss,const Buffer::Ptr &buff,size_t n) {
 	bytes += n;
 	count++;
 	ss->Send(buff,n);	
 	//ss->Recv(Buffer::New(packetSize,packetSize));
 }
 
-void onDataClient(TCPSocket::Ptr &ss,const Buffer::Ptr &buff,size_t n) {
-	ss->Send(buff,n);	
-	//ss->Recv(Buffer::New(packetSize,packetSize));
-}
-
-
 void onClose(TCPSocket::Ptr &ss) {
 	clientcount--;
-	printf("onClose\n");
+	//printf("onClose\n");
 }
 
 void onError(TCPSocket::Ptr &ss,int err) {
@@ -81,19 +85,21 @@ void onAcceptError(TCPListener::Ptr &l,int err) {
 
 void onClient(TCPListener::Ptr &l,int fd,const Addr &addr) {
 	clientcount++;
-	auto sc = TCPSocket::New(&poller_,fd);
+	ThreadPool *t = pools[fd%pools.size()];
+	auto sc = TCPSocket::New(&poller_,t,fd);
 	auto recvBuff = Buffer::New(packetSize,packetSize);
 	sc->SetRecvCallback(onDataServer)->SetCloseCallback(onClose)->SetErrorCallback(onError);
 	sc->SetFlushCallback([recvBuff](TCPSocket::Ptr &s){
+		//printf("send complete\n");
 		s->Recv(recvBuff);
 	});
 	sc->Start()->Recv(recvBuff);
-	std::cout << sc->LocalAddr().ToStr() << " <-> " << sc->RemoteAddr().ToStr() << std::endl;	
+	std::cout << sc->LocalAddr().ToStr() << " <-> " << sc->RemoteAddr().ToStr() << std::endl;
 }
 
 
 const char *ip = "localhost";
-const int   port = 8889;
+const int   port = 8888;
 
 void server() {
 	poller_.PostTask(Timer::New());
@@ -105,11 +111,12 @@ void onConnect(int fd) {
 	printf("onConnect\n");
 	std::string msg = std::string(packetSize,'a');
 	auto buff = Buffer::New(msg);
-	auto sc = TCPSocket::New(&poller_,fd);
+	ThreadPool *t = pools[fd%pools.size()];
+	auto sc = TCPSocket::New(&poller_,t,fd);
 	sc->SetRecvCallback(onDataClient)->SetErrorCallback(onError);
 	sc->SetFlushCallback([buff](TCPSocket::Ptr &s){
 		s->Recv(buff);
-	});
+	});	
 	sc->Start();
 	sc->Send(buff);
 }
@@ -119,6 +126,7 @@ void connectError(int err,const Addr &remote) {
 }
 
 void client(int count) {
+	poller_.PostTask(Timer::New());
 	for(int i = 0; i < count; ++i) {
 		if(!TCPConnector::New(&poller_,Addr::MakeIP4Addr(ip,port))->Connect(onConnect,connectError)){
 			printf("connect error\n");
@@ -128,7 +136,9 @@ void client(int count) {
 
 
 int main(int argc,char **argv) {
+
 	signal(SIGPIPE,SIG_IGN);
+
 	auto count = 0;
 	auto threadCount = std::thread::hardware_concurrency();
 
@@ -152,12 +162,21 @@ int main(int argc,char **argv) {
 	printf("threadCount:%d\n",threadCount);
 	
 	ThreadPool pool;
-	pool.Init(threadCount+1);//plus 1 for timer
+	pool.Init(2);//1 for timer,1 for listener,connector
 
 	if(!poller_.Init(&pool)) {
 		printf("init failed\n");
 		return 0;
 	}
+
+
+	//每个pool只有一个线程，因此TCPSocket被绑定到单一线程上
+	for(int i = 0; i < int(threadCount); i++) {
+		ThreadPool *t = new ThreadPool();
+		t->Init(1,ThreadPool::SwapMode);
+		pools.push_back(t);
+	}
+
 
 	if(mode == std::string("both")) {
 		auto s = std::thread(server);
@@ -175,6 +194,8 @@ int main(int argc,char **argv) {
 	}
 
 	poller_.Run();
+
+	printf("program end\n");
 
 	return 0;
 }
