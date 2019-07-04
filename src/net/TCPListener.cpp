@@ -103,14 +103,12 @@ bool TCPListener::_start(const OnNewConn &onNewConn,const OnError &onError) {
 	if(0 != bind(this->fd,addr.Address(),addr.AddrLen())) {
         ::close(this->fd);
         this->fd = -1;
-        printf("listen bind error:%s\n",strerror(errno));
 		return false;
 	}
 	
 	if(0 != listen(this->fd,SOMAXCONN)) {
 		::close(this->fd);
 		this->fd = -1;
-		printf("listen error:%s\n",strerror(errno));
 		return false;
 	}
 

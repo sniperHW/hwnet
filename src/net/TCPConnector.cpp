@@ -48,7 +48,6 @@ bool TCPConnector::Connect(const ConnectCallback &connectFn,const ErrorCallback 
     	this->poller_->Add(shared_from_this(),/*Poller::addRead |*/ Poller::addWrite);
     	return true;
     } else {
-    	printf("error 4 %s\n",strerror(errno));
     	::close(this->fd);
     	this->fd = -1;
     	return false;
@@ -84,7 +83,6 @@ void TCPConnector::OnActive(int _) {
 	
 	if(gotError) {
 		if(nullptr != errorCallback) {
-			printf("errorCallback_1 %d %p\n",this->fd,this);
 			errorCallback(err,this->remoteAddr);
 		}
 		::close(this->fd);		

@@ -114,8 +114,7 @@ TCPSocket::TCPSocket(Poller *poller_,ThreadPool *pool_,int fd):fd(fd),err(0),flu
 
 
 TCPSocket::~TCPSocket() {
-	::close(this->fd);	
-	printf("~TCPSocket\n");
+	::close(this->fd);
 }
 
 void TCPSocket::Do() {

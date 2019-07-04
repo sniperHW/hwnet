@@ -123,8 +123,7 @@ public:
 		}
 	}
 
-	~HttpSession(){
-		printf("~HttpSession\n");		
+	~HttpSession(){		
 	}
 
 private:

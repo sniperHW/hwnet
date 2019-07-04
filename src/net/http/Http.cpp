@@ -45,11 +45,9 @@ void HttpSession::onData(TCPSocket::Ptr &ss,const Buffer::Ptr &buff,size_t n) {
 void HttpSession::onClose(TCPSocket::Ptr &ss) {
 	auto session = any_cast<HttpSession*>(ss->GetUserData());
 	session->onRequest = nullptr;
-	printf("onClose\n");
 }
 
 void HttpSession::onError(TCPSocket::Ptr &ss,int err) {
-	printf("onError\n");
 	ss->Close();
 }
 
