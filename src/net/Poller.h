@@ -1,8 +1,9 @@
 #ifndef _POLLER_H
 #define _POLLER_H
 
-#include "ThreadPool.h"
-#include "Channel.h"
+#include "NonCopyable.h"
+#include "net/ThreadPool.h"
+#include "net/Channel.h"
 #include <unordered_map>
 #include <list>
 #include <atomic>
@@ -21,7 +22,7 @@
 
 namespace hwnet {
 
-class Poller {
+class Poller : public NonCopyable {
 
 private:
 
@@ -56,7 +57,7 @@ public:
 	static const int addWrite = 1 << 2;
 	static const int addET    = 1 << 3;
 
-	Poller():running(false),inited(false),poller_(this),closed(false){}
+	Poller():running(false),inited(false),closed(false){}
 
 	~Poller() {
 		if(this->poolCreateByNew){
@@ -91,9 +92,6 @@ public:
 private:
 
 	void processNotify();
-
-	Poller(const Poller&);
-	Poller& operator = (const Poller&); 
 
 	bool poolCreateByNew;
 	ThreadPool  *pool_;

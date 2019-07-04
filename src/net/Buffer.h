@@ -5,13 +5,14 @@
 #include <memory>
 #include <string.h>
 #include <string>
+#include "net/NonCopyable.h"
 
 
 namespace hwnet {
 
 class TCPSocket;
 
-class Buffer {
+class Buffer : public NonCopyable {
 
 public:
 
@@ -22,17 +23,13 @@ public:
 
 private:
 
-	class bytes {
+	class bytes : public NonCopyable {
 	public:
 		typedef std::shared_ptr<bytes> Ptr;
 		char *ptr;
 		explicit bytes(size_t cap) {
 			this->ptr = new char[cap];
 		}
-
-		bytes(bytes &&);
-		bytes(const bytes&);
-		bytes& operator = (const bytes&);
 
 		~bytes() {
 			delete [] this->ptr;
@@ -179,10 +176,7 @@ private:
 		this->len  = l;
 	}
 
-	Buffer():b(0),len(0),cap(0){}
-
-	Buffer(const Buffer&);
-	Buffer& operator = (const Buffer&); 	
+	Buffer():b(0),len(0),cap(0){}	
 
 	bytes::Ptr       buff;
 	size_t           b;

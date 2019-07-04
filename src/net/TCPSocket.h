@@ -1,22 +1,22 @@
 #ifndef _TCPSOCKET_H
 #define _TCPSOCKET_H
 
-#include "Buffer.h"
-#include "Poller.h"
-#include "Address.h"
-#include "SocketHelper.h"
-#include "any.h"
 #include <list>
 #include <mutex>
 #include <functional>
-//#include <any>
-#include "SpinMutex.h"
 #include <fcntl.h>
 #include <thread>
+#include "net/Buffer.h"
+#include "net/Poller.h"
+#include "net/Address.h"
+#include "net/SocketHelper.h"
+#include "net/any.h"
+#include "net/NonCopyable.h"
+
 
 namespace hwnet {
 
-class TCPSocket : public Task, public Channel ,public std::enable_shared_from_this<TCPSocket> {
+class TCPSocket : public NonCopyable, public Task, public Channel ,public std::enable_shared_from_this<TCPSocket> {
 
 	friend class sendContextPool;
 
@@ -55,7 +55,7 @@ public:
 
 private:
 
-	class sendContext {
+	class sendContext : public NonCopyable {
 	public:
 
 		sendContext():ptr(nullptr),len(0),next(nullptr){
@@ -76,11 +76,6 @@ private:
 			next = nullptr;
 		}
 
-		sendContext(const sendContext&);
-		sendContext(sendContext&&);
-		sendContext& operator = (const sendContext&); 
-
-
 		Buffer::Ptr  buff;
 		char        *ptr;
 		size_t       len;
@@ -91,7 +86,7 @@ private:
 	static sendContext* getSendContext(int fd,const Buffer::Ptr &buff,size_t len = 0);
 	static void putSendContext(sendContext*);
 
-	class linklist {
+	class linklist : public NonCopyable {
 
 	public:
 		sendContext *head;
@@ -103,10 +98,6 @@ private:
 		~linklist(){
 			this->clear();
 		}
-
-		linklist(const linklist&);
-		linklist(linklist&&);
-		linklist& operator = (const linklist&);
 
 		sendContext *front() {
 			if(this->head == nullptr) {
@@ -298,9 +289,6 @@ private:
 	TCPSocket(Poller *poller_,int fd);
 
 	TCPSocket(Poller *poller_,ThreadPool *pool_,int fd);
-
-	TCPSocket(const TCPSocket&);
-	TCPSocket& operator = (const TCPSocket&); 
 
 	void doClose();
 

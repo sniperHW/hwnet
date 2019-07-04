@@ -5,13 +5,14 @@
 #include <functional>
 #include <atomic>
 #include <thread>
-#include "Address.h"
-#include "Poller.h"
+#include "net/Address.h"
+#include "net/Poller.h"
+#include "net/NonCopyable.h"
 
 namespace hwnet {
 
 
-class TCPListener : public Task, public Channel ,public std::enable_shared_from_this<TCPListener> {
+class TCPListener : public NonCopyable, public Task, public Channel ,public std::enable_shared_from_this<TCPListener> {
 
 public:
 	typedef std::shared_ptr<TCPListener> Ptr;
@@ -53,9 +54,6 @@ private:
 	TCPListener(Poller *poller_,const Addr &addr):fd(-1),poller_(poller_),addr(addr),started(false),stop(false),/*readable(false),*/readableVer(0),doing(false){
 
 	}
-
-	TCPListener(const TCPListener&);
-	TCPListener& operator = (const TCPListener&);
 
 	int              fd;
 	Poller           *poller_;

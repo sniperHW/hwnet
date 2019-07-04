@@ -61,7 +61,6 @@ void remove(const TCPSocket::Ptr &socket) {
 
 void broadcast(Buffer::Ptr &msg) {
 	std::shared_lock<std::shared_mutex> shared(rwLock);
-	ccount++;
 	std::vector<TCPSocket::Ptr>::iterator it = clients.begin();
 	std::vector<TCPSocket::Ptr>::iterator end = clients.end();
 	for( ; it != end; it++){
@@ -213,9 +212,10 @@ void onClient(TCPListener::Ptr &l,int fd,const Addr &addr) {
 	ThreadPool *t = pools[fd%pools.size()];
 	auto sc = TCPSocket::New(&poller_,t,fd);
 	auto code = new Codecc(packetSize);
-	sc->SetUserData(code)->SetRecvCallback(onDataServer)->SetCloseCallback(onClose)->SetErrorCallback(onError)->Start()->Recv(code->GetRecvBuffer());
-	std::cout << sc->LocalAddr().ToStr() << " <-> " << sc->RemoteAddr().ToStr() << std::endl;
+	sc->SetUserData(code)->SetRecvCallback(onDataServer)->SetCloseCallback(onClose)->SetErrorCallback(onError);
 	add(sc);
+	sc->Start()->Recv(code->GetRecvBuffer());
+	std::cout << sc->LocalAddr().ToStr() << " <-> " << sc->RemoteAddr().ToStr() << std::endl;
 }
 
 

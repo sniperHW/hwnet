@@ -4,19 +4,20 @@
 #include <sys/event.h>
 #include "net/Channel.h"
 #include "net/ThreadPool.h"
+#include "net/NonCopyable.h"
 
 namespace hwnet {
 
 class Poller;
 
-class Kqueue {
+class Kqueue : public NonCopyable {
 
 	static const int readFlag  =  1 << 1;
 	static const int writeFlag =  1 << 2;
 	static const int errorFlag =  1 << 3;
 
 public:
-	explicit Kqueue(Poller *poller_):poller_(poller_),kfd(-1),events(nullptr),maxevents(0) {
+	explicit Kqueue():kfd(-1),events(nullptr),maxevents(0) {
 
 	}
 
@@ -44,10 +45,6 @@ public:
 
 private:
 
-	Kqueue(const Kqueue&);
-	Kqueue& operator = (const Kqueue&); 	
-
-	Poller *poller_;
 	int     kfd;
 	struct  kevent *events;
 	int     maxevents;

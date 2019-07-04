@@ -5,12 +5,13 @@
 #include <mutex>
 #include <functional>
 #include <atomic>
-#include "Address.h"
-#include "Poller.h"
+#include "net/Address.h"
+#include "net/Poller.h"
+#include "net/NonCopyable.h"
 
 namespace hwnet {
 
-class TCPConnector : public Task, public Channel ,public std::enable_shared_from_this<TCPConnector> {
+class TCPConnector :public NonCopyable, public Task, public Channel ,public std::enable_shared_from_this<TCPConnector> {
 
 
 public:
@@ -47,8 +48,6 @@ private:
 
 	bool checkError(int &err,ErrorCallback &errcb);
 
-	TCPConnector(const TCPConnector&);
-	TCPConnector& operator = (const TCPConnector&);
 	int  fd;
 
 	Addr remoteAddr;
@@ -56,7 +55,6 @@ private:
 	ConnectCallback  connectCallback_;
 	ErrorCallback    errorCallback_;
 	std::atomic_bool started;
-	std::atomic_bool stop;
 	Poller          *poller_;
 	std::mutex       mtx;
 };

@@ -14,6 +14,11 @@ TCPConnector::~TCPConnector() {
 
 bool TCPConnector::Connect(const ConnectCallback &connectFn,const ErrorCallback &errorFn) {
 
+	bool expected = false;
+	if(!this->started.compare_exchange_strong(expected,true)) {
+		return false;
+	}
+
 	this->connectCallback_ = connectFn;
 	this->errorCallback_ = errorFn;
 

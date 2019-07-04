@@ -7,9 +7,9 @@
 #include <condition_variable>
 #include <memory>
 #include <mutex>
-#include "SpinMutex.h"
 #include <atomic>
 #include <deque>
+#include "net/NonCopyable.h"
 
 
 namespace hwnet {
@@ -24,10 +24,10 @@ public:
 
 
 
-class ThreadPool {
+class ThreadPool : public NonCopyable {
 
 	//任务队列
-	class TaskQueue {
+	class TaskQueue : public NonCopyable{
 
 	public:
 
@@ -44,8 +44,6 @@ class ThreadPool {
 		bool Get(taskque &out);
 
 	private:
-		TaskQueue(const TaskQueue&);
-		TaskQueue& operator = (const TaskQueue&);
 		bool closed;
 		int  watting;//空闲线程数量
 		std::mutex mtx;
@@ -75,9 +73,6 @@ private:
 
 	static void threadFunc(ThreadPool::TaskQueue *queue_);
 	static void threadFuncSwap(ThreadPool::TaskQueue *queue_);
-
-	ThreadPool(const ThreadPool&);
-	ThreadPool& operator = (const ThreadPool&);	
 
 	std::atomic_bool inited;
 	TaskQueue queue_;

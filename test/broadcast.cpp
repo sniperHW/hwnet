@@ -78,7 +78,6 @@ public:
 	Buffer::Ptr msg;
 	TaskBroadCast(const Buffer::Ptr &msg):msg(msg){}
 	void Do() {
-		ccount++;
 		std::vector<TCPSocket::Ptr>::iterator it = clients.begin();
 		std::vector<TCPSocket::Ptr>::iterator end = clients.end();
 		for( ; it != end; it++){
@@ -168,6 +167,7 @@ public:
 
 void onDataServer(TCPSocket::Ptr &ss,const Buffer::Ptr &buff,size_t n) {
 	//bytes += n;
+	//printf("onData server\n");
 	Codecc *code = any_cast<Codecc*>(ss->GetUserData());
 	code->onData(n);
 	for( ; ; ) {
@@ -188,6 +188,7 @@ void onDataServer(TCPSocket::Ptr &ss,const Buffer::Ptr &buff,size_t n) {
 }
 
 void onDataClient(TCPSocket::Ptr &ss,const Buffer::Ptr &buff,size_t n) {
+	//printf("onData client\n");
 	Codecc *code = any_cast<Codecc*>(ss->GetUserData());
 	code->onData(n);
 	for( ; ; ) {
@@ -231,9 +232,10 @@ void onClient(TCPListener::Ptr &l,int fd,const Addr &addr) {
 	ThreadPool *t = pools[fd%pools.size()];
 	auto sc = TCPSocket::New(&poller_,t,fd);
 	auto code = new Codecc(packetSize);
-	sc->SetUserData(code)->SetRecvCallback(onDataServer)->SetCloseCallback(onClose)->SetErrorCallback(onError)->Start()->Recv(code->GetRecvBuffer());
-	std::cout << sc->LocalAddr().ToStr() << " <-> " << sc->RemoteAddr().ToStr() << std::endl;
+	sc->SetUserData(code)->SetRecvCallback(onDataServer)->SetCloseCallback(onClose)->SetErrorCallback(onError);
 	mainThread.PostTask(std::shared_ptr<Task>(new TaskAdd(sc)));
+	sc->Start()->Recv(code->GetRecvBuffer());
+	std::cout << sc->LocalAddr().ToStr() << " <-> " << sc->RemoteAddr().ToStr() << std::endl;
 }
 
 
