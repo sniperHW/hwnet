@@ -60,6 +60,7 @@ void remove(const TCPSocket::Ptr &socket) {
 }
 
 void broadcast(Buffer::Ptr &msg) {
+	ccount++;
 	std::shared_lock<std::shared_mutex> shared(rwLock);
 	std::vector<TCPSocket::Ptr>::iterator it = clients.begin();
 	std::vector<TCPSocket::Ptr>::iterator end = clients.end();

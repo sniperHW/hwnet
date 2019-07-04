@@ -41,7 +41,7 @@ public:
 private:
 
 	TCPConnector(Poller *poller_,const Addr &remote,const Addr &local):
-		remoteAddr(remote),localAddr(local),poller_(poller_) {
+		remoteAddr(remote),localAddr(local),started(false),poller_(poller_) {
 
 	}
 

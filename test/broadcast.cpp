@@ -78,6 +78,7 @@ public:
 	Buffer::Ptr msg;
 	TaskBroadCast(const Buffer::Ptr &msg):msg(msg){}
 	void Do() {
+		ccount++;
 		std::vector<TCPSocket::Ptr>::iterator it = clients.begin();
 		std::vector<TCPSocket::Ptr>::iterator end = clients.end();
 		for( ; it != end; it++){
