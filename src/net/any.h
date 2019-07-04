@@ -24,7 +24,7 @@ public: // structors
    any(): content(nullptr),counter(nullptr){}
 
    template<typename ValueType>
-   any(ValueType &&value):counter(new int(1))
+   any(const ValueType &value):counter(new int(1))
    {
 	   content = create_holder<ValueType>(value);
    }
@@ -81,17 +81,18 @@ public: // structors
        return !content;
     }
 
-    class placeholder
-    {
-      public: // structors
-		virtual ~placeholder(){}
+     class placeholder
+     {
+       public: // structors
+	   	 virtual ~placeholder(){}
      };
 
      template<typename ValueType>
      class holder : public placeholder
      {
        public: // structors
-         explicit holder(const ValueType & value): held(value){}
+         explicit holder(const ValueType &value): held(value){
+         }
 		 ValueType held;
       };
 	  	  
