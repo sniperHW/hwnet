@@ -54,25 +54,25 @@ add_library(hwnet STATIC ${src_list})
 find_package(Threads REQUIRED)
 
 add_executable(benmark test/benmark.cpp)
-target_link_libraries(benmark pthread hwnet)
+target_link_libraries(benmark hwnet pthread)
 
 add_executable(benmark2 test/benmark2.cpp)
-target_link_libraries(benmark2 pthread hwnet)
+target_link_libraries(benmark2 hwnet pthread)
 
 add_executable(benmark3 test/benmark3.cpp)
-target_link_libraries(benmark3 pthread hwnet)
+target_link_libraries(benmark3 hwnet pthread)
 
 add_executable(broadcast test/broadcast.cpp)
 target_link_libraries(broadcast pthread hwnet)
 
 add_executable(httpserver test/httpserver.cpp)
-target_link_libraries(httpserver pthread hwnet)
+target_link_libraries(httpserver hwnet pthread)
 
 add_executable(httpclient test/httpclient.cpp)
-target_link_libraries(httpclient pthread hwnet)
+target_link_libraries(httpclient hwnet pthread)
 
 if(COMPILER_SUPPORTS_CXX17)
   add_executable(broadcast2 test/broadcast2.cpp)
-  target_link_libraries(broadcast2 pthread hwnet)
+  target_link_libraries(broadcast2 hwnet pthread)
 endif()
 
