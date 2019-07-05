@@ -1,4 +1,5 @@
 #include "Http.h"
+#include <iostream>
 
 namespace hwnet { namespace http {
 
@@ -35,6 +36,7 @@ void HttpSession::Send(const std::string &str,bool closedOnFlush){
 void HttpSession::onData(TCPSocket::Ptr &ss,const Buffer::Ptr &buff,size_t n) {
 	auto session = any_cast<HttpSession*>(ss->GetUserData());
 	auto ptr = buff->BuffPtr();
+	std::cout << ptr << std::endl;
 	auto nparsed = http_parser_execute(&session->parser,&session->settings,ptr,n);
 	if(nparsed != n) {
 		onError(ss,0);

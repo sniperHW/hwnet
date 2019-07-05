@@ -8,6 +8,16 @@
 
 namespace hwnet { namespace http {
 
+struct HttpPacket {
+	typedef std::function<void (const char *at, size_t length)> bodyCb;
+	std::string url;
+	std::string status;
+	std::map<std::string,std::string> headers;
+	std::string field;
+	std::string value;
+	bodyCb onBody;
+};
+
 class HttpSession;
 
 class HttpRequest;
@@ -22,8 +32,8 @@ public:
 		resp.append(httpversion).append(" ").append(code).append(" ").append(status).append("\r\n");
 	}
 
-	void appendHeader(const std::string &header) {
-		resp.append(header).append("\r\n");
+	void appendHeader(const std::string &field,const std::string &value) {
+		resp.append(field).append(":").append(value).append("\r\n");
 	}
 
 	void setBody(const std::string &body) {
@@ -37,16 +47,6 @@ private:
 
 	std::string resp;
 	std::string body;
-};
-
-struct HttpPacket {
-	typedef std::function<void (const char *at, size_t length)> bodyCb;
-	std::string url;
-	std::string status;
-	std::map<std::string,std::string> headers;
-	std::string field;
-	std::string value;
-	bodyCb onBody;
 };
 
 
@@ -106,10 +106,7 @@ public:
 	static const int ClientSide = 1;
 	static const int ServerSide = 2;
 
-
 	typedef std::function<void (HttpRequest::Ptr &)> OnRequest;
-
-	//typedef std::function<void ()> OnResponse;
 
 	static HttpSession::Ptr New(TCPSocket::Ptr &s,int side){
 		return Ptr(new HttpSession(s,side));
@@ -127,8 +124,6 @@ public:
 	}
 
 private:
-
-
 
 	static int on_message_begin(http_parser *parser);
 
@@ -149,9 +144,6 @@ private:
 	static void onData(TCPSocket::Ptr &ss,const Buffer::Ptr &buff,size_t n);
 	static void onClose(TCPSocket::Ptr &ss);
 	static void onError(TCPSocket::Ptr &ss,int err);
-
-
-
 
 
 	HttpSession(TCPSocket::Ptr &s,int side):s(s) {
@@ -185,7 +177,6 @@ private:
 
 	void Close();
 		
-	//void Send(const char *str,size_t len);
 	void Send(const std::string &str,bool closedOnFlush = false);
 
 	HttpSession::Ptr my_shared_from_this() {

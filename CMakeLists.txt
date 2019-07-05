@@ -68,6 +68,9 @@ target_link_libraries(broadcast pthread hwnet)
 add_executable(httpserver test/httpserver.cpp)
 target_link_libraries(httpserver pthread hwnet)
 
+add_executable(httpclient test/httpclient.cpp)
+target_link_libraries(httpclient pthread hwnet)
+
 if(COMPILER_SUPPORTS_CXX17)
   add_executable(broadcast2 test/broadcast2.cpp)
   target_link_libraries(broadcast2 pthread hwnet)
