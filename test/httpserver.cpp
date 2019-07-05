@@ -33,16 +33,15 @@ const int   port = 8888;
 void onClient(TCPListener::Ptr &l,int fd,const Addr &addr) {
 	auto sc = TCPSocket::New(&poller_,fd);
 	auto session = HttpSession::New(sc,HttpSession::ServerSide);
-	session->Start([session](HttpRequest::Ptr &req) {
-		req->OnBody([req](const char *data, size_t length){
+	session->Start([session](HttpRequest::Ptr &req,HttpResponse::Ptr &resp) {
+		std::cout << "on request" << std::endl;
+		req->OnBody([req,resp](const char *data, size_t length){
 			if(data){
 				std::cout << "on body:" << std::string(data,length) << std::endl; 
 			} else {
-				auto resp = HttpResponse("HTTP/1.1","200","OK");
-				resp.appendHeader("a","b");
-				resp.setBody("hello");
-				req->SendResp(resp);
-				std::cout << "send resp" << std::endl;
+				resp->SetStatusCode(200).SetStatus("OK").SetField("a","b").SetField("Content-Length","5");
+				resp->WriteHeader();
+				resp->WriteBody("hello");
 			}
 		});	
 	});

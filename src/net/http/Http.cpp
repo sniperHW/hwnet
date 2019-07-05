@@ -3,21 +3,67 @@
 
 namespace hwnet { namespace http {
 
-void HttpResponse::Send(std::shared_ptr<HttpSession> &session,bool closedOnFlush) const {
-	session->Send(resp);
-	char content_length[128];
-	snprintf(content_length,128,"Content-Length:%lu\r\n\r\n",body.size());
-
-	if(!body.empty()){
-		session->Send(std::string(content_length));
-		session->Send(body,closedOnFlush);
+void HttpPacket::MakeHeader(const int type,std::string &out) {
+	if(type == HttpPacket::request) {
+		out.append(method_strings[this->method]).append(" ").append(this->url).append(" ");
+		char buff[128];
+		snprintf(buff,128,"%u.%u",this->http_major,this->http_minor);
+		out.append("HTTP/").append(buff).append("\r\n");		
 	} else {
-		session->Send(std::string(content_length),closedOnFlush);
+		char buff[128];
+		snprintf(buff,128,"%u.%u",this->http_major,this->http_minor);
+		out.append("HTTP/").append(buff).append(" ");
+		snprintf(buff,128,"%u",this->status_code);
+		out.append(buff).append(" ").append(status).append("\r\n");
 	}
+
+	auto it = this->headers.begin();
+	auto end = this->headers.end();
+	for(; it != end; ++it) {
+		out.append(it->first).append(":").append(it->second).append("\r\n");
+	}
+	out.append("\r\n");
 }
 
-void HttpRequest::SendResp(const HttpResponse &resp,bool closedOnFlush) {
-	resp.Send(this->session,closedOnFlush);
+void HttpResponse::WriteHeader(const std::function<void ()> &writeOk) {
+	std::string header;
+	this->packet->MakeHeader(HttpPacket::response,header);
+	if(writeOk){
+		this->session->s->SetFlushCallback([writeOk](TCPSocket::Ptr &_){
+			writeOk();
+		});
+	}
+	this->session->Send(header);
+}
+
+void HttpResponse::WriteBody(const std::string &body,const std::function<void ()> &writeOk) {
+	if(writeOk){
+		this->session->s->SetFlushCallback([writeOk](TCPSocket::Ptr &_){
+			writeOk();
+		});
+	}
+	this->session->Send(body);	
+}
+
+
+void HttpRequest::WriteHeader(const std::function<void ()> &writeOk) {
+	std::string header;
+	this->packet->MakeHeader(HttpPacket::request,header);
+	if(writeOk){
+		this->session->s->SetFlushCallback([writeOk](TCPSocket::Ptr &_){
+			writeOk();
+		});
+	}
+	this->session->Send(header);
+}
+
+void HttpRequest::WriteBody(const std::string &body,const std::function<void ()> &writeOk) {
+	if(writeOk){
+		this->session->s->SetFlushCallback([writeOk](TCPSocket::Ptr &_){
+			writeOk();
+		});
+	}
+	this->session->Send(body);	
 }
 
 
@@ -69,6 +115,7 @@ int HttpSession::on_url(http_parser *parser, const char *at, size_t length) {
 int HttpSession::on_status(http_parser *parser, const char *at, size_t length) {
 	auto session = (HttpSession*)parser->data;
 	session->packet->status.append(at,length);
+	session->packet->status_code = parser->status_code;
 	return 0;
 }
 
@@ -96,8 +143,19 @@ int HttpSession::on_headers_complete(http_parser *parser) {
 		session->packet->field.clear();
 		session->packet->value.clear();
 	}
-	auto req = HttpRequest::Ptr(new HttpRequest(session->my_shared_from_this(),session->packet));
-	session->onRequest(req);
+
+	session->packet->http_major = parser->http_major;
+	session->packet->http_minor = parser->http_minor;
+
+	if(session->side == ServerSide) {
+		auto req = HttpRequest::Ptr(new HttpRequest(nullptr,session->packet));
+		auto resp = HttpResponse::Ptr(new HttpResponse(session->my_shared_from_this(),std::shared_ptr<HttpPacket>(new HttpPacket)));
+		session->onRequest(req,resp);
+	} else {
+		auto resp = HttpResponse::Ptr(new HttpResponse(session->my_shared_from_this(),session->packet));
+		session->onResponse(resp);		
+	}
+	
 	return 0;
 }
 

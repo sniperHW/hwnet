@@ -8,36 +8,16 @@
 #include 	"net/Address.h"
 #include    "net/TCPListener.h"
 #include    "net/TCPConnector.h"
+#include    "net/http/Http.h"
 #include 	<time.h>
 #include 	<unistd.h>
 #include    <signal.h>
 
-/*
- *       TCPSocket可以由Poller中任意一个空闲线程执行
- *
- */
-
-
 using namespace hwnet;
+using namespace hwnet::http;
 
 
 Poller poller_;
-
-void onDataClient(TCPSocket::Ptr &ss,const Buffer::Ptr &buff,size_t n) {
-	std::cout << buff->BuffPtr() << std::endl;
-	poller_.Stop();
-}
-
-
-void onClose(TCPSocket::Ptr &ss) {
-	printf("onClose\n");
-}
-
-void onError(TCPSocket::Ptr &ss,int err) {
-	printf("onError error:%d %s\n",err,strerror(err));
-	ss->Close();
-}
-
 
 const char *ip = "localhost";
 const int   port = 8888;
@@ -45,13 +25,24 @@ const int   port = 8888;
 
 void onConnect(int fd) {
 	printf("onConnect\n");
-	std::string request = "GET / HTTP/1.1\r\nHost: localhost:8888\r\nContent-Length:5\r\n\r\nhello";
-	auto buff = Buffer::New(request);
 	auto sc = TCPSocket::New(&poller_,fd);
-	sc->SetRecvCallback(onDataClient)->SetErrorCallback(onError);	
-	sc->Start();
-	sc->Send(buff);
-	sc->Recv(Buffer::New(1024,1024));
+	
+	auto session = HttpSession::New(sc,HttpSession::ClientSide);
+	session->Start([session](HttpResponse::Ptr &resp) {
+		std::cout << "on response" << std::endl;
+		resp->OnBody([resp](const char *data, size_t length){
+			if(data){
+				std::cout << "on body:" << std::string(data,length) << std::endl; 
+			} else {
+				poller_.Stop();
+			}
+		});	
+	});
+
+	auto req = HttpRequest(session,std::shared_ptr<HttpPacket>(new HttpPacket));
+	req.SetMethod(1).SetUrl("/").SetField("Host","localhost:8888").SetField("Content-Length","5");
+	req.WriteHeader();
+	req.WriteBody("hello");
 }
 
 void connectError(int err,const Addr &remote) {
@@ -68,7 +59,6 @@ int main(int argc,char **argv) {
 		printf("init failed\n");
 		return 0;
 	}
-
 
 	TCPConnector::New(&poller_,Addr::MakeIP4Addr(ip,port))->Connect(onConnect,connectError);
 	poller_.Run();
