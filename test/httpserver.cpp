@@ -29,6 +29,13 @@ Poller poller_;
 const char *ip = "localhost";
 const int   port = 8888;
 
+std::string longstrings[] = {
+	std::string(1024,'a'),
+	std::string(1024,'a'),
+	std::string(1024,'a'),
+	std::string(1024,'a'),	
+};
+
 
 void onClient(TCPListener::Ptr &l,int fd,const Addr &addr) {
 	auto sc = TCPSocket::New(&poller_,fd);
@@ -39,9 +46,18 @@ void onClient(TCPListener::Ptr &l,int fd,const Addr &addr) {
 			if(data){
 				std::cout << "on body:" << std::string(data,length) << std::endl; 
 			} else {
-				resp->SetStatusCode(200).SetStatus("OK").SetField("a","b").SetField("Content-Length","5");
+				resp->SetStatusCode(200).SetStatus("OK").SetField("a","b").SetField("Content-Length","4096");
 				resp->WriteHeader();
-				resp->WriteBody("hello");
+				auto i = 0;
+
+				std::function<void ()> flushComplete;
+
+				flushComplete = [flushComplete,&i,resp](){
+					std::this_thread::sleep_for(std::chrono::seconds(1));
+					resp->WriteBody(longstrings[++i],flushComplete);
+				};
+
+				resp->WriteBody(longstrings[i],flushComplete);
 			}
 		});	
 	});
