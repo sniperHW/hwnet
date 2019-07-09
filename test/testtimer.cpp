@@ -10,7 +10,25 @@
 
 #include    "util/Timer.h"
 
+
+void testTimerRoutine() {
+	hwnet::util::TimerRoutine routine(hwnet::util::TimerMgr::normal);
+
+
+	routine.addTimer(100,[](hwnet::util::Timer::Ptr t){
+		std::cout << "timer 100" << std::endl;
+	});
+
+	routine.addTimer(200,[](hwnet::util::Timer::Ptr t){
+		std::cout << "timer 200" << std::endl;
+	});	
+
+	std::this_thread::sleep_for(std::chrono::seconds(1));
+
+}
+
 int main() {
+
 
 	{
 		hwnet::util::TimerMgr mgr(hwnet::util::TimerMgr::normal);
@@ -76,6 +94,7 @@ int main() {
 	}
 
 
-	
+	testTimerRoutine();
+
 	return 0;
 }

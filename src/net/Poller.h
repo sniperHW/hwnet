@@ -3,11 +3,11 @@
 
 #include "net/ThreadPool.h"
 #include "net/Channel.h"
+#include "util/Timer.h"
 #include <unordered_map>
 #include <list>
 #include <atomic>
 #include <mutex>
-
 
 #ifdef _LINUX
 #include "linux/Epoll.h"
@@ -56,7 +56,7 @@ public:
 	static const int addWrite = 1 << 2;
 	static const int addET    = 1 << 3;
 
-	Poller():running(false),inited(false),closed(false){}
+	Poller():running(false),inited(false),closed(false),timerRoutine(util::TimerMgr::normal){}
 
 	~Poller() {
 		if(this->poolCreateByNew){
@@ -88,6 +88,19 @@ public:
 
 	void Stop();
 
+    template<typename F, typename ...TArgs>
+    util::Timer::WeakPtr addTimer(util::milliseconds timeout, F&& callback, TArgs&& ...args)
+    {
+    	return timerRoutine.addTimer(timeout,callback,std::forward<TArgs>(args)...);
+    }
+
+    template<typename F, typename ...TArgs>
+    util::Timer::WeakPtr addTimerOnce(util::milliseconds timeout, F&& callback, TArgs&& ...args)
+    {
+		return timerRoutine.addTimerOnce(timeout,callback,std::forward<TArgs>(args)...);
+	}
+
+
 private:
 
 	void processNotify();
@@ -111,6 +124,8 @@ private:
 	std::list<Channel::Ptr> waitRemove;
 
 	std::atomic_bool closed;
+
+	util::TimerRoutine timerRoutine;
 
 };
 

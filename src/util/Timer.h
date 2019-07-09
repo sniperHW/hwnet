@@ -10,6 +10,7 @@
 #include <mutex>
 #include <atomic>
 #include <thread>
+#include <condition_variable>
 
 namespace hwnet { namespace util {
 
@@ -17,6 +18,8 @@ typedef size_t milliseconds;
 
 
 class TimerMgr;
+
+class TimerRoutine;
 
 class Timer final : public std::enable_shared_from_this<Timer> {
 
@@ -70,12 +73,12 @@ private:
 	std::atomic_uint                mStatus;
     std::thread::id 	            tid;
     friend class TimerMgr;
+    friend class TimerRoutine;
 };
 
 class TimerMgr final {
-
 	friend class Timer;
-
+	friend class TimerRoutine;
 public:
 
 	enum {
@@ -93,7 +96,7 @@ public:
             timeout,
             false);
         timer->mCallback = std::bind(std::forward<F>(callback), timer, std::forward<TArgs>(args)...);
-        this->insert(timer);
+        this->insertLock(timer);
 
         return timer;
     }
@@ -106,15 +109,12 @@ public:
             timeout,
             true);
         timer->mCallback = std::bind(std::forward<F>(callback), timer, std::forward<TArgs>(args)...);
-        this->insert(timer);
+        this->insertLock(timer);
 
         return timer;
     }    
 
     void Schedule(const milliseconds &now);
-
-    // if timer empty, return zero
-    milliseconds nearLeftTime(const milliseconds &now) const;
 
 	bool Empty() {
 		std::lock_guard<std::mutex> guard(this->mtx);
@@ -231,8 +231,13 @@ private:
 		}
 	}
 
-	bool insert(Timer::Ptr &e) {
+	bool insertLock(Timer::Ptr &e) {
 		std::lock_guard<std::mutex> guard(this->mtx);
+		return insert(e);
+	}	
+
+	bool insert(Timer::Ptr &e) {
+		
 		if(nullptr != e->mMgr) {
 			if(e->mIndex > this->elements_size) {
 				return false;
@@ -293,6 +298,82 @@ private:
 	size_t     elements_size;
 	std::vector<Timer::Ptr> elements;
 
+};
+
+class TimerRoutine {
+
+public:
+
+	TimerRoutine(int policy):mgr(policy),thd(threadFunc,this),stoped(false),
+		begTime(std::chrono::steady_clock::now()),waitTime(0xFFFFFFFF){
+	}
+
+    template<typename F, typename ...TArgs>
+    Timer::WeakPtr addTimer(milliseconds timeout, F&& callback, TArgs&& ...args)
+    {
+        auto timer = std::make_shared<Timer>(
+            getMilliseconds() + timeout,
+            timeout,
+            false);
+        timer->mCallback = std::bind(std::forward<F>(callback), timer, std::forward<TArgs>(args)...);
+
+        std::lock_guard<std::mutex> guard(this->mgr.mtx);
+        this->mgr.insert(timer);
+        this->mgr.insert(timer);
+        if(waitting && timeout < waitTime) {
+        	waitTime = timeout;
+        	this->cv.notify_one();
+        }        
+        return timer;
+    }
+
+    template<typename F, typename ...TArgs>
+    Timer::WeakPtr addTimerOnce(milliseconds timeout, F&& callback, TArgs&& ...args)
+    {
+        auto timer = std::make_shared<Timer>(
+            getMilliseconds() + timeout,
+            timeout,
+            true);
+        timer->mCallback = std::bind(std::forward<F>(callback), timer, std::forward<TArgs>(args)...);
+
+        std::lock_guard<std::mutex> guard(this->mgr.mtx);
+        this->mgr.insert(timer);
+        if(waitting && timeout < waitTime) {
+        	waitTime = timeout;
+        	this->cv.notify_one();
+        }
+
+        return timer;
+    }
+
+    void Stop();
+
+    ~TimerRoutine() {
+    	Stop();
+    }
+
+
+private:
+
+	void wait(milliseconds now);
+
+	milliseconds getMilliseconds() const {
+		return (std::chrono::steady_clock::now() - begTime).count()/1000000;
+	} 
+
+	TimerRoutine(const TimerRoutine&) = delete;
+	TimerRoutine& operator = (const TimerRoutine&) = delete;
+
+	static void threadFunc(TimerRoutine *self);
+
+	TimerMgr mgr;
+	std::condition_variable_any cv;
+	std::thread thd;
+	std::atomic_bool stoped;
+	std::chrono::steady_clock::time_point begTime;
+	milliseconds waitTime;
+	bool waitting;
+	
 };
 
 

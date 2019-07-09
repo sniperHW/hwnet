@@ -2,6 +2,8 @@
 
 namespace hwnet { namespace util {
 
+using namespace std::chrono_literals;
+
 
 void Timer::operator() ()
 {
@@ -67,6 +69,44 @@ void TimerMgr::Schedule(const milliseconds &now) {
         this->mtx.lock();
     }
     this->mtx.unlock();
+}
+
+void TimerRoutine::wait(milliseconds now) {
+	std::lock_guard<std::mutex> guard(this->mgr.mtx);
+	if(this->mgr.elements_size == 0) {
+		this->waitting = true;
+		this->waitTime = 0xFFFFFFFF;
+		this->cv.wait_for(this->mgr.mtx,this->waitTime * 1ms);
+	} else {
+		auto top = this->mgr.top();
+		if(now > top->mExpiredTime) {
+			this->waitting = true;
+			this->waitTime = top->mExpiredTime - now;
+			this->cv.wait_for(this->mgr.mtx,this->waitTime * 1ms);			
+		}
+	}
+	this->waitting = false;
+}
+
+void TimerRoutine::threadFunc(TimerRoutine *self) {
+	for(;!self->stoped;) {
+		self->wait(self->getMilliseconds());
+		self->mgr.Schedule(self->getMilliseconds());
+	}
+}
+
+void TimerRoutine::Stop() {
+	this->mgr.mtx.lock();
+	if(this->stoped){
+		this->mgr.mtx.unlock();
+		return;
+	}
+	this->stoped = true;
+	if(this->waitting) {
+		this->cv.notify_one();
+	}
+	this->mgr.mtx.unlock();
+	this->thd.join();
 }
 
 
