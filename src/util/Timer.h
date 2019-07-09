@@ -39,8 +39,7 @@ public:
     using Callback = std::function<void(void)>;
 
     Timer(const milliseconds &ExpiredTime, const milliseconds &timeout, bool once):
-    		mTimeout(timeout),mOnce(once),mMgr(nullptr),mIndex(0),mStatus(0){
-    		mExpiredTime = ExpiredTime;
+    		mExpiredTime(ExpiredTime),mTimeout(timeout),mOnce(once),mMgr(nullptr),mIndex(0),mStatus(0){
     	}
 
     milliseconds getLeftTime(const milliseconds &now) const {
@@ -61,7 +60,7 @@ private:
 
     void operator() ();
 
-private:
+
     Callback                        mCallback;
     milliseconds                 	mExpiredTime;
     const milliseconds              mTimeout;
@@ -84,11 +83,7 @@ public:
 		compensate = 2,
 	};
 
-	TimerMgr(int policy):policy(policy),elements_size(0){}
-
-	~TimerMgr() {
-		Clear();
-	}
+	explicit TimerMgr(int policy):policy(policy),elements_size(0){}
 
     template<typename F, typename ...TArgs>
     Timer::WeakPtr addTimer(milliseconds now,milliseconds timeout, F&& callback, TArgs&& ...args)
@@ -124,11 +119,6 @@ public:
 	bool Empty() {
 		std::lock_guard<std::mutex> guard(this->mtx);
 		return this->elements_size == 0;
-	}
-
-	void Clear() {
-		this->elements.clear();
-		this->elements_size = 0;
 	}
 
 private:
