@@ -15,8 +15,9 @@ static const char *method_strings[] =
 #undef XX
   };
 
-struct HttpPacket {
+class HttpPacket {
 
+public:
 	static const int request  = 1;
 	static const int response = 2;
 

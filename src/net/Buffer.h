@@ -158,10 +158,6 @@ public:
 		return this->buff->ptr + this->b;
 	}
 
-	~Buffer() {
-		this->buff = nullptr;
-	}
-
 private:
 
 	Buffer(size_t cap_,size_t l):b(0),len(0){
