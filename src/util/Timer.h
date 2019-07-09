@@ -112,7 +112,7 @@ public:
         this->insertLock(timer);
 
         return timer;
-    }    
+    }
 
     void Schedule(const milliseconds &now);
 

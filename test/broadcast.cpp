@@ -28,7 +28,7 @@ std::atomic_int  count(0);
 std::atomic_bool serverStarted(false);
 std::atomic_int  clientcount(0);
 std::atomic_int  ccount(0);
-volatile bool stoped = false;
+
 
 Poller poller_;
 
@@ -64,7 +64,6 @@ public:
 				swap(clients[i],clients[clients.size()-1]);
 				clients.pop_back();
 				if(clientcount == 0){
-					stoped = true;
 					poller_.Stop();
 				}
 			}
@@ -139,31 +138,6 @@ private:
 	/*volatile*/ size_t w;
 	/*volatile*/ size_t r;
 	size_t maxPacketSize;
-};
-
-
-void show() {
-	for(;!stoped;){
-		printf("client:%d packetcount:%d ccount:%d\n",clientcount.load(),count.load(),ccount.load());
-		bytes.store(0);
-		count.store(0);
-		ccount.store(0);
-		std::this_thread::sleep_for(std::chrono::seconds(1));
-	}
-}
-
-class Timer : public Task,public std::enable_shared_from_this<Timer> {
-
-public:
-
-	static Timer::Ptr New() {
-		return Timer::Ptr(new Timer);
-	}
-
-	void Do() {
-		show();
-	}
-	~Timer(){}
 };
 
 void onDataServer(TCPSocket::Ptr &ss,const Buffer::Ptr &buff,size_t n) {
@@ -244,8 +218,15 @@ const char *ip = "localhost";
 const int   port = 8888;
 
 void server() {
+
+	poller_.addTimer(1000,[](hwnet::util::Timer::Ptr t){
+		printf("client:%d packetcount:%d ccount:%d\n",clientcount.load(),count.load(),ccount.load());
+		bytes.store(0);
+		count.store(0);
+		ccount.store(0);		
+	});
+
 	mainThread.Init(1,ThreadPool::SwapMode);
-	poller_.PostTask(Timer::New());
 	TCPListener::New(&poller_,Addr::MakeIP4Addr(ip,port))->Start(onClient,onAcceptError);
 	serverStarted.store(true);
 }

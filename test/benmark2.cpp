@@ -24,36 +24,12 @@ std::atomic<std::int64_t>  bytes(0);
 std::atomic_int  count(0);
 std::atomic_bool serverStarted(false);
 std::atomic_int  clientcount(0);
-volatile bool stoped = false;
 
 Poller poller_;
 
 std::vector<ThreadPool*> pools;
 
 int packetSize = 4096;
-
-void show() {
-	for(;!stoped;){
-		printf("client:%d packetcount:%d bytes:%d MB/sec\n",clientcount.load(),count.load(),(int)(bytes.load()/1024/1024));
-		bytes.store(0);
-		count.store(0);
-		std::this_thread::sleep_for(std::chrono::seconds(1));
-	}
-}
-
-class Timer : public Task,public std::enable_shared_from_this<Timer> {
-
-public:
-
-	static Timer::Ptr New() {
-		return Timer::Ptr(new Timer);
-	}
-
-	void Do() {
-		show();
-	}
-	~Timer(){}
-};
 
 void onDataServer(TCPSocket::Ptr &ss,const Buffer::Ptr &buff,size_t n) {
 	//printf("ondata %d\n",n);
@@ -102,7 +78,11 @@ const char *ip = "localhost";
 const int   port = 8888;
 
 void server() {
-	poller_.PostTask(Timer::New());
+	poller_.addTimer(1000,[](hwnet::util::Timer::Ptr t){
+		printf("client:%d packetcount:%d bytes:%d MB/sec\n",clientcount.load(),count.load(),(int)(bytes.load()/1024/1024));
+		bytes.store(0);
+		count.store(0);	
+	});
 	TCPListener::New(&poller_,Addr::MakeIP4Addr(ip,port))->Start(onClient,onAcceptError);
 	serverStarted.store(true);
 }
@@ -126,7 +106,6 @@ void connectError(int err,const Addr &remote) {
 }
 
 void client(int count) {
-	poller_.PostTask(Timer::New());
 	for(int i = 0; i < count; ++i) {
 		if(!TCPConnector::New(&poller_,Addr::MakeIP4Addr(ip,port))->Connect(onConnect,connectError)){
 			printf("connect error\n");

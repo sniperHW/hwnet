@@ -29,29 +29,6 @@ Poller poller_;
 
 int packetSize = 4096;
 
-void show() {
-	for(;;){
-		printf("client:%d packetcount:%d bytes:%d MB/sec\n",clientcount.load(),count.load(),(int)(bytes.load()/1024/1024));
-		bytes.store(0);
-		count.store(0);
-		std::this_thread::sleep_for(std::chrono::seconds(1));
-	}
-}
-
-class Timer : public Task,public std::enable_shared_from_this<Timer> {
-
-public:
-
-	static Timer::Ptr New() {
-		return Timer::Ptr(new Timer);
-	}
-
-	void Do() {
-		show();
-	}
-	~Timer(){}
-};
-
 void onDataServer(TCPSocket::Ptr &ss,const Buffer::Ptr &buff,size_t n) {
 	bytes += n;
 	count++;
@@ -96,7 +73,12 @@ const char *ip = "localhost";
 const int   port = 8889;
 
 void server() {
-	poller_.PostTask(Timer::New());
+	poller_.addTimer(1000,[](hwnet::util::Timer::Ptr t){
+		printf("client:%d packetcount:%d bytes:%d MB/sec\n",clientcount.load(),count.load(),(int)(bytes.load()/1024/1024));
+		bytes.store(0);
+		count.store(0);				
+	});
+
 	TCPListener::New(&poller_,Addr::MakeIP4Addr(ip,port))->Start(onClient,onAcceptError);
 	serverStarted.store(true);
 }
@@ -152,7 +134,7 @@ int main(int argc,char **argv) {
 	printf("threadCount:%d\n",threadCount);
 	
 	ThreadPool pool;
-	pool.Init(threadCount+1);//plus 1 for timer
+	pool.Init(threadCount);
 
 	if(!poller_.Init(&pool)) {
 		printf("init failed\n");
