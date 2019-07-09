@@ -30,6 +30,7 @@ void HttpResponse::WriteHeader(const std::function<void ()> &writeOk) {
 	this->packet->MakeHeader(HttpPacket::response,header);
 	if(writeOk){
 		this->session->s->SetFlushCallback([writeOk](TCPSocket::Ptr &_){
+			(void)_;
 			writeOk();
 		});
 	}
@@ -39,6 +40,7 @@ void HttpResponse::WriteHeader(const std::function<void ()> &writeOk) {
 void HttpResponse::WriteBody(const std::string &body,const std::function<void ()> &writeOk) {
 	if(writeOk){
 		this->session->s->SetFlushCallback([writeOk](TCPSocket::Ptr &_){
+			(void)_;
 			writeOk();
 		});
 	}
@@ -51,6 +53,7 @@ void HttpRequest::WriteHeader(const std::function<void ()> &writeOk) {
 	this->packet->MakeHeader(HttpPacket::request,header);
 	if(writeOk){
 		this->session->s->SetFlushCallback([writeOk](TCPSocket::Ptr &_){
+			(void)_;	
 			writeOk();
 		});
 	}
@@ -60,6 +63,7 @@ void HttpRequest::WriteHeader(const std::function<void ()> &writeOk) {
 void HttpRequest::WriteBody(const std::string &body,const std::function<void ()> &writeOk) {
 	if(writeOk){
 		this->session->s->SetFlushCallback([writeOk](TCPSocket::Ptr &_){
+			(void)_;
 			writeOk();
 		});
 	}

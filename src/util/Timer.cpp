@@ -89,7 +89,7 @@ void TimerRoutine::wait(milliseconds now) {
 }
 
 void TimerRoutine::threadFunc(TimerRoutine *self) {
-	for(;!self->stoped;) {
+	while(!self->stoped) {
 		self->wait(self->getMilliseconds());
 		self->mgr.Schedule(self->getMilliseconds());
 	}

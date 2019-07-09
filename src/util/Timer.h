@@ -304,7 +304,7 @@ class TimerRoutine {
 
 public:
 
-	TimerRoutine(int policy):mgr(policy),thd(threadFunc,this),stoped(false),
+	explicit TimerRoutine(int policy):mgr(policy),thd(threadFunc,this),stoped(false),
 		begTime(std::chrono::steady_clock::now()),waitTime(0xFFFFFFFF){
 	}
 
