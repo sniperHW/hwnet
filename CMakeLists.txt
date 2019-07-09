@@ -73,7 +73,7 @@ add_executable(httpclient test/httpclient.cpp)
 target_link_libraries(httpclient hwnet pthread)
 
 add_executable(testtimer test/testtimer.cpp)
-target_link_libraries(testtimer hwnet)
+target_link_libraries(testtimer hwnet pthread)
 
 if(COMPILER_SUPPORTS_CXX17)
   add_executable(broadcast2 test/broadcast2.cpp)
