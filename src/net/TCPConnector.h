@@ -7,6 +7,7 @@
 #include <atomic>
 #include "net/Address.h"
 #include "net/Poller.h"
+#include "util/Timer.h"
 
 namespace hwnet {
 
@@ -28,6 +29,8 @@ public:
 
 	bool Connect(const ConnectCallback &connectFn,const ErrorCallback &errorFn = nullptr);
 
+	bool ConnectWithTimeout(const ConnectCallback &connectFn,size_t timeout,const ErrorCallback &errorFn = nullptr);
+
 	void OnActive(int event);
 
 	void Do();
@@ -40,12 +43,14 @@ public:
 
 private:
 
+	static void connectTimeout(util::Timer::Ptr t,TCPConnector::Ptr self);
+
 	TCPConnector(Poller *poller_,const Addr &remote,const Addr &local):
-		remoteAddr(remote),localAddr(local),started(false),poller_(poller_) {
+		remoteAddr(remote),localAddr(local),started(false),poller_(poller_),doing(false),gotError(false),err(0) {
 
 	}
 
-	bool checkError(int &err,ErrorCallback &errcb);
+	bool checkError(int &err);
 
 	TCPConnector(const TCPConnector&) = delete;
 	TCPConnector& operator = (const TCPConnector&) = delete;
@@ -53,11 +58,16 @@ private:
 
 	Addr remoteAddr;
 	Addr localAddr;
-	ConnectCallback  connectCallback_;
-	ErrorCallback    errorCallback_;
-	std::atomic_bool started;
-	Poller          *poller_;
-	std::mutex       mtx;
+	ConnectCallback  		connectCallback_;
+	ErrorCallback    		errorCallback_;
+	std::atomic_bool 		started;
+	Poller          		*poller_;
+	std::mutex       		mtx;
+	util::Timer::WeakPtr    connectTimer;	
+	bool                    doing;
+	bool                    gotError;
+	int                     err;
+
 };
 
 }
