@@ -32,7 +32,8 @@ set(src_list
   ${PROJECT_SOURCE_DIR}/src/net/TCPConnector.cpp
   ${PROJECT_SOURCE_DIR}/src/net/SocketHelper.cpp
   ${PROJECT_SOURCE_DIR}/src/net/http/http_parser.c
-  ${PROJECT_SOURCE_DIR}/src/net/http/Http.cpp       
+  ${PROJECT_SOURCE_DIR}/src/net/http/Http.cpp 
+  ${PROJECT_SOURCE_DIR}/src/util/Timer.cpp        
 )
 
 if(APPLE) 
@@ -70,6 +71,9 @@ target_link_libraries(httpserver hwnet pthread)
 
 add_executable(httpclient test/httpclient.cpp)
 target_link_libraries(httpclient hwnet pthread)
+
+add_executable(testtimer test/testtimer.cpp)
+target_link_libraries(testtimer hwnet)
 
 if(COMPILER_SUPPORTS_CXX17)
   add_executable(broadcast2 test/broadcast2.cpp)
