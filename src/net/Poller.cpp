@@ -43,18 +43,6 @@ void Poller::notifyChannel::notify() {
 	TEMP_FAILURE_RETRY(::write(this->notifyfds[1],&e,sizeof(e)));
 }
 
-void Poller::Remove(const Channel::Ptr &channel) {
-	this->mtx.lock();
-	if(this->channels.find(channel->Fd()) == this->channels.end()){
-		this->mtx.unlock();
-		return;
-	}
-	this->waitRemove.push_back(channel);
-	this->mtx.unlock();
-	poller_.Remove(channel);
-	this->notifyChannel_->notify();
-}
-
 bool Poller::Init(ThreadPool *pool) {
 
 	auto poolCreateByNew_ = false;
@@ -101,13 +89,27 @@ bool Poller::Init(ThreadPool *pool) {
 
 int Poller::Add(const Channel::Ptr &channel,int flag) {
 	std::lock_guard<std::mutex> guard(this->mtx);
-
 	if(this->channels.find(channel->Fd()) != this->channels.end()) {
 		return -1;
 	} else {
 		this->channels[channel->Fd()] = channel;
 		return poller_.Add(channel,flag);
 	}
+}
+
+void Poller::Remove(const Channel::Ptr &channel) {
+	this->mtx.lock();
+	auto it = this->channels.find(channel->Fd());
+	if(it == this->channels.end()){
+		this->mtx.unlock();
+		return;		
+	}
+	this->waitRemove.push_back(channel);
+	this->channels.erase(it);
+	poller_.Remove(channel);
+	++clearWaitRemove;
+	this->mtx.unlock();
+	this->notifyChannel_->notify();
 }
 
 int Poller::Enable(const Channel::Ptr &channel,int flag,int oldEvents) {
@@ -141,12 +143,11 @@ void Poller::Run() {
 	if(this->running.compare_exchange_strong(expected,true)){
 		while(this->closed.load() == false) {
 			auto ret = poller_.RunOnce();
-			std::lock_guard<std::mutex> guard(this->mtx);
-			while(!this->waitRemove.empty()) {
-				auto c = this->waitRemove.front();
-				this->channels.erase(c->Fd());
-				this->waitRemove.pop_front();
-			}		
+			if(clearWaitRemove.load() != 0) {
+				std::lock_guard<std::mutex> guard(this->mtx);
+				clearWaitRemove.store(0);
+				waitRemove.clear();
+			}	
 			if(ret != 0) {
 				break;
 			}

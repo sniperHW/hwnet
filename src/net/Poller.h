@@ -56,7 +56,7 @@ public:
 	static const int Write = 1 << 2;
 	static const int ET    = 1 << 3;
 
-	Poller():running(false),inited(false),closed(false),timerRoutine(util::TimerMgr::normal){}
+	Poller():running(false),inited(false),closed(false),timerRoutine(util::TimerMgr::normal),clearWaitRemove(0){}
 
 	~Poller() {
 		if(this->poolCreateByNew){
@@ -130,6 +130,8 @@ private:
 	std::atomic_bool closed;
 
 	util::TimerRoutine timerRoutine;
+
+	std::atomic_int clearWaitRemove;
 
 };
 
