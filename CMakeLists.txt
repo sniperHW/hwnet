@@ -23,6 +23,9 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O2 -g -Wall")
 set(LIBRARY_OUTPUT_PATH "${PROJECT_BINARY_DIR}/lib")
 set(EXECUTABLE_OUTPUT_PATH "${PROJECT_BINARY_DIR}/bin")
 include_directories("${PROJECT_SOURCE_DIR}/src/")
+include_directories("${PROJECT_SOURCE_DIR}/")
+include_directories("/usr/local/include")
+LINK_DIRECTORIES("/usr/local/lib")
 
 set(src_list
   ${PROJECT_SOURCE_DIR}/src/net/TCPSocket.cpp
@@ -75,11 +78,12 @@ target_link_libraries(httpclient hwnet pthread)
 add_executable(testtimer test/testtimer.cpp)
 target_link_libraries(testtimer hwnet pthread)
 
-#include_directories("${PROJECT_SOURCE_DIR}/")
-#include_directories("/usr/local/include")
-#LINK_DIRECTORIES("/usr/local/lib")
-#add_executable(dns test/dns/Resolver.cpp test/dns/dns.cpp)
-#target_link_libraries(dns hwnet pthread cares)
+option(BUILD_DNS "Build dns" OFF)
+
+if(BUILD_DNS)
+  add_executable(dns test/dns/Resolver.cpp test/dns/dns.cpp)
+  target_link_libraries(dns hwnet pthread cares)
+endif(BUILD_DNS)
 
 if(COMPILER_SUPPORTS_CXX17)
   add_executable(broadcast2 test/broadcast2.cpp)
