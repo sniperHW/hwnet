@@ -75,6 +75,12 @@ target_link_libraries(httpclient hwnet pthread)
 add_executable(testtimer test/testtimer.cpp)
 target_link_libraries(testtimer hwnet pthread)
 
+#include_directories("${PROJECT_SOURCE_DIR}/")
+#include_directories("/usr/local/include")
+#LINK_DIRECTORIES("/usr/local/lib")
+#add_executable(dns test/dns/Resolver.cpp test/dns/dns.cpp)
+#target_link_libraries(dns hwnet pthread cares)
+
 if(COMPILER_SUPPORTS_CXX17)
   add_executable(broadcast2 test/broadcast2.cpp)
   target_link_libraries(broadcast2 hwnet pthread)
