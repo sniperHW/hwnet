@@ -90,6 +90,17 @@ private:
 
   void addTimer(double timeout);
 
+  
+  template<typename F>
+  void pushClouserAndPostTask(F &&closure) {
+    std::lock_guard<std::mutex> guard(this->mtx);
+    closures.push_back(closure);
+    if(!this->doing) {
+      this->doing = true;
+      this->poller_->PostTask(shared_from_this());
+    } 
+  }
+
   static void ares_host_callback(void* data, int status, int timeouts, struct hostent* hostent);
   static int ares_sock_create_callback(int sockfd, int type, void* data);
   static void ares_sock_state_callback(void* data, int sockfd, int read, int write);

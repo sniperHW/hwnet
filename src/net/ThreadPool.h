@@ -22,6 +22,29 @@ public:
 };
 
 
+class ClosureTask : public Task,public std::enable_shared_from_this<ClosureTask> {
+
+public:
+	using Callback = std::function<void(void)>;	
+	typedef std::shared_ptr<ClosureTask> Ptr;
+
+	template<typename F, typename ...TArgs>
+	static ClosureTask::Ptr New(F&& callback, TArgs&& ...args){
+		return ClosureTask::Ptr(new ClosureTask(std::bind(std::forward<F>(callback),std::forward<TArgs>(args)...)));
+	}
+
+	void Do(){
+		mCallback();
+	}
+private:
+
+	ClosureTask(const Callback &cb):mCallback(cb){
+
+	}
+
+	Callback mCallback;
+};
+
 
 class ThreadPool {
 
@@ -29,7 +52,6 @@ class ThreadPool {
 	class TaskQueue {
 
 	public:
-
 		typedef std::deque<Task::Ptr> taskque;
 
 		TaskQueue():closed(false),watting(0){}
@@ -65,6 +87,11 @@ public:
 	void PostTask(const Task::Ptr &task) {
 		queue_.PostTask(task);
 	}
+
+    /*template<typename F, typename ...TArgs>
+	void PostTask(F&& callback, TArgs&& ...args){
+		queue_.PostTask(std::forward<F>(callback),std::forward<TArgs>(args)...);
+	}*/
 
 	void Close() {
 		queue_.Close();

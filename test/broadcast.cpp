@@ -38,56 +38,6 @@ std::vector<TCPSocket::Ptr> clients;
 
 int packetSize = 4096;
 
-
-class TaskAdd : public Task,public std::enable_shared_from_this<TaskAdd> {
-
-public:
-	TCPSocket::Ptr socket;
-	
-	TaskAdd(const TCPSocket::Ptr &socket):socket(socket){}
-
-	void Do() {
-		clients.push_back(this->socket);
-		clientcount++;
-	}
-};
-
-class TaskDel : public Task,public std::enable_shared_from_this<TaskDel> {
-
-public:
-	TCPSocket::Ptr socket;
-	TaskDel(const TCPSocket::Ptr &socket):socket(socket){}
-	void Do() {
-		for(size_t i = 0 ; i < clients.size(); i++) {
-			if(clients[i]->Fd() == this->socket->Fd()) {
-				clientcount--;
-				swap(clients[i],clients[clients.size()-1]);
-				clients.pop_back();
-				if(clientcount == 0){
-					poller_.Stop();
-				}
-			}
-		}	
-	}	
-};
-
-class TaskBroadCast : public Task,public std::enable_shared_from_this<TaskBroadCast> {
-
-public:
-	Buffer::Ptr msg;
-	TaskBroadCast(const Buffer::Ptr &msg):msg(msg){}
-	void Do() {
-		ccount++;
-		std::vector<TCPSocket::Ptr>::iterator it = clients.begin();
-		std::vector<TCPSocket::Ptr>::iterator end = clients.end();
-		for( ; it != end; it++){
-			(*it)->Send(this->msg);
-			count++;
-		}
-	}
-	int fd;	
-};
-
 class Codecc {
 
 public:
@@ -150,7 +100,16 @@ void onDataServer(TCPSocket::Ptr &ss,const Buffer::Ptr &buff,size_t n) {
 		std::pair<Buffer::Ptr,int> ret = code->Decode();
 		if(ret.second == 0) {
 			if(ret.first != nullptr) {
-				mainThread.PostTask(std::shared_ptr<Task>(new TaskBroadCast(ret.first)));
+				auto msg = ret.first;
+				mainThread.PostTask(ClosureTask::New([msg](){
+					ccount++;
+					std::vector<TCPSocket::Ptr>::iterator it = clients.begin();
+					std::vector<TCPSocket::Ptr>::iterator end = clients.end();
+					for( ; it != end; it++){
+						(*it)->Send(msg);
+						count++;
+					}
+				}));
 			} else {
 				break;
 			}
@@ -190,7 +149,19 @@ void onDataClient(TCPSocket::Ptr &ss,const Buffer::Ptr &buff,size_t n) {
 
 
 void onClose(TCPSocket::Ptr &ss) {
-	mainThread.PostTask(std::shared_ptr<Task>(new TaskDel(ss)));
+	auto fd = ss->Fd();
+	mainThread.PostTask(ClosureTask::New([fd](){
+		for(size_t i = 0 ; i < clients.size(); i++) {
+			if(clients[i]->Fd() == fd) {
+				clientcount--;
+				swap(clients[i],clients[clients.size()-1]);
+				clients.pop_back();
+				if(clientcount == 0){
+					poller_.Stop();
+				}
+			}
+		}		
+	}));  
 	printf("onClose\n");
 }
 
@@ -208,7 +179,10 @@ void onClient(TCPListener::Ptr &l,int fd,const Addr &addr) {
 	auto sc = TCPSocket::New(&poller_,t,fd);
 	auto code = new Codecc(packetSize);
 	sc->SetUserData(code)->SetRecvCallback(onDataServer)->SetCloseCallback(onClose)->SetErrorCallback(onError);
-	mainThread.PostTask(std::shared_ptr<Task>(new TaskAdd(sc)));
+	mainThread.PostTask(ClosureTask::New([sc](){
+		clients.push_back(sc);
+		clientcount++;
+	}));
 	sc->Start()->Recv(code->GetRecvBuffer());
 	std::cout << sc->LocalAddr().ToStr() << " <-> " << sc->RemoteAddr().ToStr() << std::endl;
 }

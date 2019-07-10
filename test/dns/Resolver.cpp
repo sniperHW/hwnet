@@ -20,33 +20,14 @@ double getSeconds(struct timeval* tv)
     return -1.0;
 }
 
-const char* getSocketType(int type)
-{
-  if (type == SOCK_DGRAM)
-    return "UDP";
-  else if (type == SOCK_STREAM)
-    return "TCP";
-  else
-    return "Unknown";
-}
-
 void Resolver::QueryChannel::OnActive(int event) {
   if(event & hwnet::Poller::ReadFlag()) {
     auto r_ = this->r.lock();
     if(r_) {
-      std::lock_guard<std::mutex> guard(r_->mtx);
       auto fd = this->fd;
-
-      auto f = [r_,fd](){
+      r_->pushClouserAndPostTask([r_,fd](){
         ares_process_fd(r_->ctx_, fd, ARES_SOCKET_BAD);
-      };
-
-      r_->closures.push_back(f);
-
-      if(!r_->doing) {
-        r_->doing = true;
-        r_->poller_->PostTask(r_);
-      }
+      });
     }
   }
 }
@@ -96,29 +77,19 @@ Resolver::~Resolver()
 
 bool Resolver::resolve(const std::string hostname, const Callback& cb)
 {
-  std::lock_guard<std::mutex> guard(this->mtx);
   QueryData* queryData = new QueryData(this, cb);
-  auto ctx_ = this->ctx_;
-  auto sp = shared_from_this();
   if(queryData){
-    auto f = [queryData,ctx_,hostname,sp](){
-      ares_gethostbyname(ctx_, hostname.c_str(), AF_INET, &Resolver::ares_host_callback, queryData);
-
+    auto sp = shared_from_this();
+    this->pushClouserAndPostTask([queryData,hostname,sp](){
+      ares_gethostbyname(sp->ctx_, hostname.c_str(), AF_INET, &Resolver::ares_host_callback, queryData);
       struct timeval tv;
-      struct timeval* tvp = ares_timeout(ctx_, NULL, &tv);
+      struct timeval* tvp = ares_timeout(sp->ctx_, NULL, &tv);
       double timeout = getSeconds(tvp);
 
       if(!sp->timerActive_) {
           sp->addTimer(timeout);
       }
-
-    };
-    closures.push_back(f);
-
-    if(!doing) {
-      doing = true;
-      this->poller_->PostTask(sp);
-    }
+    });
   }
   return queryData != NULL;  
 }
@@ -127,20 +98,13 @@ void Resolver::addTimer(double timeout) {
   timerActive_ = true;
   auto sp = shared_from_this();
   sp->poller_->addTimerOnce(timeout*1000,[sp](hwnet::util::Timer::Ptr t){
-        std::lock_guard<std::mutex> guard(sp->mtx);
-        auto f = [sp](){
-          sp->onTimer();
-        };
-        sp->closures.push_back(f);
-        if(!sp->doing) {
-          sp->doing = true;
-          sp->poller_->PostTask(sp);
-        }              
+      sp->pushClouserAndPostTask([sp](){
+        sp->onTimer();
+      });            
   });
 }
 
-void Resolver::onTimer()
-{
+void Resolver::onTimer() {
   ares_process_fd(ctx_, ARES_SOCKET_BAD, ARES_SOCKET_BAD);
   struct timeval tv;
   struct timeval* tvp = ares_timeout(ctx_, NULL, &tv);
