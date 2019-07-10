@@ -33,7 +33,7 @@ bool Epoll::Init() {
 	return true;
 }
 
-void Epoll::Add(const Channel::Ptr &channel,int flag) {
+int Epoll::Add(const Channel::Ptr &channel,int flag) {
 	epoll_event ev = {0};
 	ev.data.ptr = channel.get();
 
@@ -51,13 +51,58 @@ void Epoll::Add(const Channel::Ptr &channel,int flag) {
 	}
 
 	ev.events |= EPOLLERR | EPOLLHUP | EPOLLRDHUP | et;
+
 	epoll_ctl(this->epfd,EPOLL_CTL_ADD,channel->Fd(),&ev);
+
+	return ev.events;
 }
 
 void Epoll::Remove(const Channel::Ptr &channel) {
 	epoll_event ev = {0};
 	epoll_ctl(epfd,EPOLL_CTL_DEL,channel->Fd(),&ev);
 }
+
+int Epoll::Enable(const Channel::Ptr &channel,int flag,int oldEvents) {
+
+	int events = oldEvents;
+
+	epoll_event ev = {0};
+	ev.data.ptr = channel.get();
+	ev.events = oldEvents;
+		
+	if(flag & Poller::Read) {
+		ev.events |= EPOLLIN;
+	}
+
+	if(flag & Poller::Write) {
+		ev.events |= EPOLLOUT;
+	}
+
+	epoll_ctl(this->epfd,EPOLL_CTL_MOD,channel->Fd(),&ev)
+
+	return ev.events;
+
+}
+
+int Epoll::Disable(const Channel::Ptr &channel,int flag,int oldEvents) {
+	int events = oldEvents;
+
+	epoll_event ev = {0};
+	ev.data.ptr = channel.get();
+	ev.events = oldEvents;
+		
+	if(flag & Poller::Read) {
+		ev.events &= ~EPOLLIN;
+	}
+
+	if(flag & Poller::Write) {
+		ev.events &= ~EPOLLOUT;
+	}
+
+	epoll_ctl(this->epfd,EPOLL_CTL_MOD,channel->Fd(),&ev)
+
+	return ev.events;
+}	
 
 int Epoll::RunOnce() {
 	epoll_event *tmp;

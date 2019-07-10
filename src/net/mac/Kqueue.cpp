@@ -37,23 +37,29 @@ bool Kqueue::Init() {
 	return true;	
 }
 
-void Kqueue::Add(const Channel::Ptr &channel,int flag) {
+int Kqueue::Add(const Channel::Ptr &channel,int flag) {
 	struct kevent ke = {0};
 
 	int et = 0;
-	if(flag & Poller::addET){
+	if(flag & Poller::ET){
 		et = EV_CLEAR;
 	}
 
-	if(flag & Poller::addRead) {
+	int events = 0;
+
+	if(flag & Poller::Read) {
 		EV_SET(&ke, channel->Fd(), EVFILT_READ, EV_ADD | et, 0, 0, channel.get());
 		kevent(this->kfd, &ke, 1, nullptr, 0, nullptr);
+		events |= Poller::Read;
 	}
 
-	if(flag & Poller::addWrite) {
+	if(flag & Poller::Write) {
 		EV_SET(&ke, channel->Fd(), EVFILT_WRITE, EV_ADD | et, 0, 0, channel.get());
 		kevent(this->kfd, &ke, 1, nullptr, 0, nullptr);
+		events |= Poller::Write;
 	}
+
+	return events;
 }
 
 void Kqueue::Remove(const Channel::Ptr &channel) {
@@ -66,13 +72,55 @@ void Kqueue::Remove(const Channel::Ptr &channel) {
 	EV_SET(&ke[1], channel->Fd(), EVFILT_WRITE, EV_DELETE, 0, 0, nullptr);
 	kevent(this->kfd, ke, 2, nullptr, 0, nullptr);	
 	*/	
-
 	struct kevent keR = {0};
 	struct kevent keW = {0};
 	EV_SET(&keR, channel->Fd(), EVFILT_READ, EV_DELETE, 0, 0, nullptr);
 	kevent(this->kfd, &keR, 1, nullptr, 0, nullptr);
 	EV_SET(&keW, channel->Fd(), EVFILT_WRITE, EV_DELETE, 0, 0, nullptr);
 	kevent(this->kfd, &keW, 1, nullptr, 0, nullptr);	
+}
+
+int Kqueue::Enable(const Channel::Ptr &channel,int flag,int oldEvents) {
+		
+	int events = oldEvents;	
+
+	if(flag & Poller::Read) {
+		struct kevent ke = {0};
+		EV_SET(&ke, channel->Fd(), EVFILT_READ, EV_ENABLE, 0, 0, channel.get());
+		kevent(this->kfd, &ke, 1, nullptr, 0, nullptr);
+		events |= Poller::Read;
+	}
+
+	if(flag & Poller::Write) {
+		struct kevent ke = {0};
+		EV_SET(&ke, channel->Fd(), EVFILT_WRITE, EV_ENABLE, 0, 0, channel.get());
+		kevent(this->kfd, &ke, 1, nullptr, 0, nullptr);
+		events |= Poller::Write;		
+	}
+
+	return events;
+}
+
+int Kqueue::Disable(const Channel::Ptr &channel,int flag,int oldEvents) {
+
+	int events = oldEvents;
+
+	if(flag & Poller::Read) {
+		struct kevent ke = {0};
+		EV_SET(&ke, channel->Fd(), EVFILT_READ, EV_DISABLE, 0, 0, channel.get());
+		kevent(this->kfd, &ke, 1, nullptr, 0, nullptr);
+		events &= ~Poller::Read;
+
+	}
+
+	if(flag & Poller::Write) {
+		struct kevent ke = {0};
+		EV_SET(&ke, channel->Fd(), EVFILT_WRITE, EV_DISABLE, 0, 0, channel.get());
+		kevent(this->kfd, &ke, 1, nullptr, 0, nullptr);
+		events &= ~Poller::Write;
+	}
+
+	return events;
 }
 
 

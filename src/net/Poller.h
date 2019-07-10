@@ -52,9 +52,9 @@ private:
 
 public:
 
-	static const int addRead  = 1 << 1;
-	static const int addWrite = 1 << 2;
-	static const int addET    = 1 << 3;
+	static const int Read  = 1 << 1;
+	static const int Write = 1 << 2;
+	static const int ET    = 1 << 3;
 
 	Poller():running(false),inited(false),closed(false),timerRoutine(util::TimerMgr::normal){}
 
@@ -78,9 +78,13 @@ public:
 
 	bool Init(ThreadPool *pool = nullptr);
 
-	void Add(const Channel::Ptr &channel,int flag);
+	int Add(const Channel::Ptr &channel,int flag);
 
 	void Remove(const Channel::Ptr &channel);
+
+	int Enable(const Channel::Ptr &channel,int flag,int oldEvents);
+
+	int Disable(const Channel::Ptr &channel,int flag,int oldEvents);
 
 	void PostTask(const Task::Ptr &task,ThreadPool *tpool = nullptr);
 

@@ -33,7 +33,7 @@ bool Poller::notifyChannel::init(Poller *p) {
 
 #endif
 
-	p->Add(shared_from_this(),addRead);
+	p->Add(shared_from_this(),Read);
 
 	return true;	
 }
@@ -96,10 +96,18 @@ bool Poller::Init(ThreadPool *pool) {
 	return true;	
 }
 
-void Poller::Add(const Channel::Ptr &channel,int flag) {
+int Poller::Add(const Channel::Ptr &channel,int flag) {
 	std::lock_guard<std::mutex> guard(this->mtx);
-	poller_.Add(channel,flag);
 	this->channels[channel->Fd()] = channel;
+	return poller_.Add(channel,flag);
+}
+
+int Poller::Enable(const Channel::Ptr &channel,int flag,int oldEvents) {
+	return poller_.Enable(channel,flag,oldEvents);
+}
+
+int Poller::Disable(const Channel::Ptr &channel,int flag,int oldEvents) {
+	return poller_.Disable(channel,flag,oldEvents);
 }
 
 void Poller::PostTask(const Task::Ptr &task,ThreadPool *tpool) {

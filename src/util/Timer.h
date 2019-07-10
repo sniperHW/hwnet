@@ -41,6 +41,11 @@ public:
     using WeakPtr = std::weak_ptr<Timer>;
     using Callback = std::function<void(void)>;
 
+    int cancel();
+
+private:
+
+
     Timer(const milliseconds &ExpiredTime, const milliseconds &timeout, bool once):
     		mExpiredTime(ExpiredTime),mTimeout(timeout),mOnce(once),mMgr(nullptr),mIndex(0),mStatus(0){
     	}
@@ -53,13 +58,9 @@ public:
     	}
     }
 
-    int cancel();
-
-private:
 
 	Timer(const TimerMgr&) = delete;
 	Timer& operator = (const TimerMgr&) = delete;	
-
 
     void operator() ();
 
@@ -91,26 +92,18 @@ public:
     template<typename F, typename ...TArgs>
     Timer::WeakPtr addTimer(milliseconds now,milliseconds timeout, F&& callback, TArgs&& ...args)
     {
-        auto timer = std::make_shared<Timer>(
-            now + timeout,
-            timeout,
-            false);
+        auto timer = Timer::Ptr(new Timer(now + timeout,timeout,false));
         timer->mCallback = std::bind(std::forward<F>(callback), timer, std::forward<TArgs>(args)...);
         this->insertLock(timer);
-
         return timer;
     }
 
     template<typename F, typename ...TArgs>
     Timer::WeakPtr addTimerOnce(milliseconds now,milliseconds timeout, F&& callback, TArgs&& ...args)
     {
-        auto timer = std::make_shared<Timer>(
-            now + timeout,
-            timeout,
-            true);
+        auto timer = Timer::Ptr(new Timer(now + timeout,timeout,true));
         timer->mCallback = std::bind(std::forward<F>(callback), timer, std::forward<TArgs>(args)...);
         this->insertLock(timer);
-
         return timer;
     }
 
@@ -237,8 +230,12 @@ private:
 	}	
 
 	bool insert(Timer::Ptr &e) {
-		
-		if(nullptr != e->mMgr) {
+
+		if(e->mMgr != nullptr && e->mMgr != this) {
+			return false;
+		}
+
+		if(e->mIndex > 0) {
 			if(e->mIndex > this->elements_size) {
 				return false;
 			}
@@ -265,10 +262,11 @@ private:
 
 	bool remove(Timer::Ptr &e) {
 		std::lock_guard<std::mutex> guard(this->mtx);
-		if(nullptr != e->mMgr) {
-			if(e->mIndex > this->elements_size) {
+		if(this == e->mMgr) {
+			if(e->mIndex == 0 || e->mIndex > this->elements_size) {
 				return false;
 			}
+
 			auto offsetIdx = getOffset(e->mIndex);
 			if(this->elements[offsetIdx] != e) {
 				return false;
@@ -285,7 +283,6 @@ private:
 			}
 
 			this->elements[this->elements_size] = nullptr;
-			e->mMgr   = nullptr;
 			e->mIndex = 0;
 			return true;
 		} else {
@@ -311,14 +308,10 @@ public:
     template<typename F, typename ...TArgs>
     Timer::WeakPtr addTimer(milliseconds timeout, F&& callback, TArgs&& ...args)
     {
-        auto timer = std::make_shared<Timer>(
-            getMilliseconds() + timeout,
-            timeout,
-            false);
+        auto timer = Timer::Ptr(new Timer(getMilliseconds() + timeout,timeout,false));
         timer->mCallback = std::bind(std::forward<F>(callback), timer, std::forward<TArgs>(args)...);
 
         std::lock_guard<std::mutex> guard(this->mgr.mtx);
-        this->mgr.insert(timer);
         this->mgr.insert(timer);
         if(waitting && timeout < waitTime) {
         	waitTime = timeout;
@@ -330,10 +323,7 @@ public:
     template<typename F, typename ...TArgs>
     Timer::WeakPtr addTimerOnce(milliseconds timeout, F&& callback, TArgs&& ...args)
     {
-        auto timer = std::make_shared<Timer>(
-            getMilliseconds() + timeout,
-            timeout,
-            true);
+        auto timer = Timer::Ptr(new Timer(getMilliseconds() + timeout,timeout,true));
         timer->mCallback = std::bind(std::forward<F>(callback), timer, std::forward<TArgs>(args)...);
 
         std::lock_guard<std::mutex> guard(this->mgr.mtx);

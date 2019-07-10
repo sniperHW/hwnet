@@ -69,7 +69,7 @@ bool TCPConnector::Connect(const ConnectCallback &connectFn,const ErrorCallback 
 
     if(ret == 0 || errno == EINPROGRESS) {
 		std::lock_guard<std::mutex> guard(this->mtx);
-    	this->poller_->Add(shared_from_this(),Poller::addWrite);
+    	this->poller_->Add(shared_from_this(),Poller::Write);
     	return true;
     } else {
     	::close(this->fd);

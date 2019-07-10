@@ -11,6 +11,7 @@ void Timer::operator() ()
 }
 
 int Timer::cancel() {
+
 	uint expected1 = 0;
 	uint expected2 = Timer::incallback;
 	uint setv1 = Timer::canceled;
@@ -26,12 +27,8 @@ int Timer::cancel() {
 			}
 		} else {
 			auto s = shared_from_this();
-			if(!mMgr || mIndex == 0 || !mMgr->remove(s)) {
-				return Timer::invaild_timer;
-			} else {
-				//定时器尚未开始执行,取消成功
-				return Timer::cancel_ok;
-			}
+			mMgr->remove(s);
+			return Timer::cancel_ok;
 		}
 	} else {
 		return Timer::invaild_timer;
@@ -45,28 +42,34 @@ void TimerMgr::Schedule(const milliseconds &now) {
         if (tmp->mExpiredTime > now){
             break;
         }
-        pop();
-        this->mtx.unlock();
 
+       	tmp->tid = std::this_thread::get_id(); 
 		uint expected = 0;
 		uint setv = Timer::incallback;
-		if(tmp->mStatus.compare_exchange_strong(expected,setv)) {
-			tmp->tid = std::this_thread::get_id(); 
+		auto ok = tmp->mStatus.compare_exchange_strong(expected,setv);
+        pop();
+
+        this->mtx.unlock();
+		
+		if(ok) {
 			(*tmp)();
-			tmp->tid = std::thread::id(); 
-			if(!tmp->mOnce && !(tmp->mStatus.load() & Timer::canceled)) {
-				tmp->mStatus.store(tmp->mStatus ^ Timer::incallback);
+		}
+
+        this->mtx.lock();
+
+        if(ok && !tmp->mOnce) {
+        	expected = Timer::incallback;
+        	setv = 0;
+        	if(tmp->mStatus.compare_exchange_strong(expected,setv)) {
 				if(this->policy == TimerMgr::normal) {
 					tmp->mExpiredTime = now + tmp->mTimeout;
 				} else {
 	        		tmp->mExpiredTime += tmp->mTimeout;
 	        	}
 	        	this->insert(tmp);
-			} else {
-				tmp->mStatus.store((tmp->mStatus ^ (Timer::incallback)) | Timer::canceled);
-			}
-		}
-        this->mtx.lock();
+	        	tmp->tid = std::thread::id();        		
+        	}
+        }
     }
     this->mtx.unlock();
 }

@@ -36,9 +36,13 @@ public:
 
 	bool Init();
 
-	void Add(const Channel::Ptr &channel,int flag);
+	int Add(const Channel::Ptr &channel,int flag);
 
 	void Remove(const Channel::Ptr &channel);
+
+	int Enable(const Channel::Ptr &channel,int flag,int oldEvents);
+
+	int Disable(const Channel::Ptr &channel,int flag,int oldEvents);
 
 	int  RunOnce();
 
