@@ -44,11 +44,14 @@ void Poller::notifyChannel::notify() {
 }
 
 void Poller::Remove(const Channel::Ptr &channel) {
-	poller_.Remove(channel);
-	{
-		std::lock_guard<std::mutex> guard(this->mtx);
-		this->waitRemove.push_back(channel);
+	this->mtx.lock();
+	if(this->channels.find(channel->Fd()) == this->channels.end()){
+		this->mtx.unlock();
+		return;
 	}
+	this->waitRemove.push_back(channel);
+	this->mtx.unlock();
+	poller_.Remove(channel);
 	this->notifyChannel_->notify();
 }
 
@@ -98,16 +101,31 @@ bool Poller::Init(ThreadPool *pool) {
 
 int Poller::Add(const Channel::Ptr &channel,int flag) {
 	std::lock_guard<std::mutex> guard(this->mtx);
-	this->channels[channel->Fd()] = channel;
-	return poller_.Add(channel,flag);
+
+	if(this->channels.find(channel->Fd()) != this->channels.end()) {
+		return -1;
+	} else {
+		this->channels[channel->Fd()] = channel;
+		return poller_.Add(channel,flag);
+	}
 }
 
 int Poller::Enable(const Channel::Ptr &channel,int flag,int oldEvents) {
-	return poller_.Enable(channel,flag,oldEvents);
+	std::lock_guard<std::mutex> guard(this->mtx);
+	if(this->channels.find(channel->Fd()) == this->channels.end()) {
+		return -1;
+	} else {
+		return poller_.Enable(channel,flag,oldEvents);
+	}
 }
 
 int Poller::Disable(const Channel::Ptr &channel,int flag,int oldEvents) {
-	return poller_.Disable(channel,flag,oldEvents);
+	std::lock_guard<std::mutex> guard(this->mtx);
+	if(this->channels.find(channel->Fd()) == this->channels.end()) {
+		return -1;
+	} else {	
+		return poller_.Disable(channel,flag,oldEvents);
+	}
 }
 
 void Poller::PostTask(const Task::Ptr &task,ThreadPool *tpool) {
