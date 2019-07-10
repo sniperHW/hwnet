@@ -101,7 +101,7 @@ void onDataServer(TCPSocket::Ptr &ss,const Buffer::Ptr &buff,size_t n) {
 		if(ret.second == 0) {
 			if(ret.first != nullptr) {
 				auto msg = ret.first;
-				mainThread.PostTask(ClosureTask::New([msg](){
+				mainThread.PostClosure([msg](){
 					ccount++;
 					std::vector<TCPSocket::Ptr>::iterator it = clients.begin();
 					std::vector<TCPSocket::Ptr>::iterator end = clients.end();
@@ -109,7 +109,7 @@ void onDataServer(TCPSocket::Ptr &ss,const Buffer::Ptr &buff,size_t n) {
 						(*it)->Send(msg);
 						count++;
 					}
-				}));
+				});
 			} else {
 				break;
 			}
@@ -150,7 +150,7 @@ void onDataClient(TCPSocket::Ptr &ss,const Buffer::Ptr &buff,size_t n) {
 
 void onClose(TCPSocket::Ptr &ss) {
 	auto fd = ss->Fd();
-	mainThread.PostTask(ClosureTask::New([fd](){
+	mainThread.PostClosure([fd](){
 		for(size_t i = 0 ; i < clients.size(); i++) {
 			if(clients[i]->Fd() == fd) {
 				clientcount--;
@@ -161,7 +161,7 @@ void onClose(TCPSocket::Ptr &ss) {
 				}
 			}
 		}		
-	}));  
+	});  
 	printf("onClose\n");
 }
 
@@ -179,10 +179,10 @@ void onClient(TCPListener::Ptr &l,int fd,const Addr &addr) {
 	auto sc = TCPSocket::New(&poller_,t,fd);
 	auto code = new Codecc(packetSize);
 	sc->SetUserData(code)->SetRecvCallback(onDataServer)->SetCloseCallback(onClose)->SetErrorCallback(onError);
-	mainThread.PostTask(ClosureTask::New([sc](){
+	mainThread.PostClosure([sc](){
 		clients.push_back(sc);
 		clientcount++;
-	}));
+	});
 	sc->Start()->Recv(code->GetRecvBuffer());
 	std::cout << sc->LocalAddr().ToStr() << " <-> " << sc->RemoteAddr().ToStr() << std::endl;
 }

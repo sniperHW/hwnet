@@ -88,6 +88,16 @@ public:
 
 	void PostTask(const Task::Ptr &task,ThreadPool *tpool = nullptr);
 
+	template<typename F, typename ...TArgs>
+	void PostClosure(F&& callback, TArgs&& ...args){
+		PostTask(ClosureTask::New(std::forward<F>(callback),std::forward<TArgs>(args)...));
+	}
+
+	template<typename F, typename ...TArgs>
+	void PostClosure(ThreadPool *tpool,F&& callback, TArgs&& ...args){
+		PostTask(ClosureTask::New(std::forward<F>(callback),std::forward<TArgs>(args)...),tpool);
+	}	
+
 	void Run();
 
 	void Stop();

@@ -88,10 +88,10 @@ public:
 		queue_.PostTask(task);
 	}
 
-    /*template<typename F, typename ...TArgs>
-	void PostTask(F&& callback, TArgs&& ...args){
-		queue_.PostTask(std::forward<F>(callback),std::forward<TArgs>(args)...);
-	}*/
+    template<typename F, typename ...TArgs>
+	void PostClosure(F&& callback, TArgs&& ...args){
+		queue_.PostTask(ClosureTask::New(std::forward<F>(callback),std::forward<TArgs>(args)...));
+	}
 
 	void Close() {
 		queue_.Close();
