@@ -55,6 +55,8 @@ public:
 
 	typedef std::function<void (TCPSocket::Ptr&)> RecvTimeoutCallback;
 
+	typedef std::function<void (TCPSocket::Ptr&)> SendTimeoutCallback;
+
 private:
 
 	class sendContext {
@@ -215,7 +217,14 @@ public:
 		return shared_from_this();	    
 	}	
 
+	/*
+	 * 最小时间为100毫秒
+	 * 以下两个超时处理在回调一次之后将会关闭，如需要再次开启必须重新注册 
+	 */
+
 	TCPSocket::Ptr SetRecvTimeoutCallback(util::milliseconds timeout, const RecvTimeoutCallback &callback);
+
+	TCPSocket::Ptr SetSendTimeoutCallback(util::milliseconds timeout, const SendTimeoutCallback &callback);
 
 	/*
 	 *  将socket添加到poller中,如果需要设置ErrorCallback,务必在Start之前设置。
@@ -279,7 +288,11 @@ public:
 
 private:
 
-	void checkRecvTimeout();
+	void registerTimer(int);
+
+	void checkTimeout();
+
+	static void onTimer(hwnet::util::Timer::Ptr _,TCPSocket::Ptr s);
 
 	bool highWater() {
 		return highWaterSize > 0 && bytes4Send > highWaterSize;
@@ -292,6 +305,14 @@ private:
 #else
 		return (readable && !recvList.empty()) || socketError;
 #endif
+	}
+
+	bool recvListEmpty() {
+#ifdef GATHER_RECV
+		return ptrRecvlist->empty();
+#else
+		return recvList.empty();
+#endif		
 	}
 
 	bool canWrite() {
@@ -353,10 +374,18 @@ private:
 	std::atomic_bool       started;
 	std::thread::id 	   tid;
 	std::list<std::function<void (void)>> closures;
+	
 	util::milliseconds     recvTimeout;
 	RecvTimeoutCallback    recvTimeoutCallback_;
 	std::chrono::steady_clock::time_point lastRecvTime;
-	util::Timer::WeakPtr   recvTimer;
+	util::Timer::WeakPtr   timer;
+
+	util::milliseconds     sendTimeout;
+	SendTimeoutCallback    sendTimeoutCallback_;
+	std::chrono::steady_clock::time_point lastSendTime;
+	
+	//util::Timer::WeakPtr   sendTimer;	
+
 
 };
 
