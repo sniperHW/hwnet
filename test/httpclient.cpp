@@ -40,7 +40,7 @@ void onConnect(int fd) {
 	});
 
 	auto req = HttpRequest(session,std::shared_ptr<HttpPacket>(new HttpPacket));
-	req.SetMethod(1).SetUrl("/").SetField("Host","localhost:8888").SetField("Content-Length","5");
+	req.SetMethod(hwnet::http::HTTP_GET).SetUrl("/").SetField("Host","localhost:8888").SetField("Content-Length","5");
 	req.WriteHeader();
 	req.WriteBody("hello");
 }

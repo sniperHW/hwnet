@@ -9,11 +9,20 @@
 namespace hwnet { namespace http {
 
 static const char *method_strings[] =
-  {
+{
 #define XX(num, name, string) #string,
   HTTP_METHOD_MAP(XX)
 #undef XX
-  };
+};
+
+
+enum http_method
+{
+#define XX(num, name, string) HTTP_##name = num,
+  HTTP_METHOD_MAP(XX)
+#undef XX
+};
+
 
 class HttpPacket {
 
