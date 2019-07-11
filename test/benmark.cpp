@@ -64,6 +64,10 @@ void onClient(TCPListener::Ptr &l,int fd,const Addr &addr) {
 	sc->SetFlushCallback([recvBuff](TCPSocket::Ptr &s){
 		s->Recv(recvBuff);
 	});
+	sc->SetRecvTimeoutCallback(5000,[](TCPSocket::Ptr &s){
+		std::cout << "receive timeout" << std::endl;
+		s->Close();
+	});
 	sc->Start()->Recv(recvBuff);
 	std::cout << sc->LocalAddr().ToStr() << " <-> " << sc->RemoteAddr().ToStr() << std::endl;	
 }

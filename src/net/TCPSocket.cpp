@@ -85,10 +85,12 @@ void TCPSocket::putSendContext(TCPSocket::sendContext *s) {
 	sContextPool.put(s);	
 }
 
+
 TCPSocket::TCPSocket(Poller *poller_,int fd):fd(fd),err(0),flushCallback_(nullptr),
 	errorCallback_(nullptr),closeCallback_(nullptr),readable(false),readableVer(0),writeable(false),
 	writeableVer(0),closed(false),closedOnFlush(false),shutdown(false),doing(false),socketError(false),poller_(poller_),
-	bytes4Send(0),highWaterSize(0),pool_(nullptr),started(false){
+	bytes4Send(0),highWaterSize(0),pool_(nullptr),started(false),
+	recvTimeout(0),recvTimeoutCallback_(nullptr),lastRecvTime(std::chrono::steady_clock::now()){
 		slistIdx = 0;
 		ptrSendlist = &sendLists[slistIdx];
 
@@ -96,14 +98,14 @@ TCPSocket::TCPSocket(Poller *poller_,int fd):fd(fd),err(0),flushCallback_(nullpt
 		rlistIdx = 0;
 		ptrRecvlist = &recvLists[rlistIdx];		
 #endif
-
 	}
 
 
 TCPSocket::TCPSocket(Poller *poller_,ThreadPool *pool_,int fd):fd(fd),err(0),flushCallback_(nullptr),
 	errorCallback_(nullptr),closeCallback_(nullptr),readable(false),readableVer(0),writeable(false),
 	writeableVer(0),closed(false),closedOnFlush(false),shutdown(false),doing(false),socketError(false),poller_(poller_),
-	bytes4Send(0),highWaterSize(0),pool_(pool_),started(false){
+	bytes4Send(0),highWaterSize(0),pool_(pool_),started(false),
+	recvTimeout(0),recvTimeoutCallback_(nullptr),lastRecvTime(std::chrono::steady_clock::now()){
 		slistIdx = 0;
 		ptrSendlist = &sendLists[slistIdx];		
 #ifdef GATHER_RECV
@@ -117,6 +119,59 @@ TCPSocket::~TCPSocket() {
 	::close(this->fd);
 }
 
+
+void TCPSocket::checkRecvTimeout() {
+	//再次确认	
+	if(this->recvTimeout > 0 && 
+	   this->recvTimeoutCallback_ && 
+	   (std::chrono::steady_clock::now() - this->lastRecvTime).count() > this->recvTimeout*1000000) {
+		RecvTimeoutCallback cb = this->recvTimeoutCallback_;
+		this->mtx.unlock();
+		auto sp = shared_from_this();
+		cb(sp);
+		this->mtx.lock();
+	}	
+}
+
+TCPSocket::Ptr TCPSocket::SetRecvTimeoutCallback(util::milliseconds timeout, const RecvTimeoutCallback &callback) {
+	std::lock_guard<std::mutex> guard(this->mtx);
+	auto sp = this->recvTimer.lock();
+	if(sp) {
+		sp->cancel();
+	}
+
+	this->recvTimeout = 0;
+	this->recvTimeoutCallback_ = nullptr;
+
+	auto selfSP = shared_from_this();
+	if(timeout > 0 && callback) {
+
+		this->recvTimeout = timeout;
+		this->recvTimeoutCallback_ = callback;	
+
+		this->recvTimer = this->poller_->addTimer(100,[selfSP](hwnet::util::Timer::Ptr t){
+			auto post = false;
+			selfSP->mtx.lock();
+			if(selfSP->recvTimeout > 0 && 
+			   selfSP->recvTimeoutCallback_ && 
+			   (std::chrono::steady_clock::now() - selfSP->lastRecvTime).count() > selfSP->recvTimeout*1000000) {
+				selfSP->closures.push_back(std::bind(&TCPSocket::checkRecvTimeout, selfSP));
+				if(!selfSP->doing){
+					selfSP->doing = true;
+					post = true;
+				}
+			}
+			selfSP->mtx.unlock();
+			if(post) {
+				selfSP->poller_->PostTask(selfSP,selfSP->pool_);
+			}
+		});
+	}
+
+	return shared_from_this();
+
+}
+
 void TCPSocket::Do() {
 	static const int maxLoop = 10;
 	auto doClose = false;	
@@ -124,6 +179,12 @@ void TCPSocket::Do() {
 	auto i = 0;
 	for( ;;i++) {
 		this->mtx.lock();
+		if(!this->closures.empty()) {
+			auto front = this->closures.front();
+			this->closures.pop_front();
+			front();
+		}
+
 		auto canRead_ = canRead();
 		auto canWrite_ = canWrite();
 		if(!(canRead_ || canWrite_) || this->closed) {
@@ -167,8 +228,6 @@ void TCPSocket::Recv(const Buffer::Ptr &buff) {
 
 	auto post = false;
 	{
-
-
 		if(std::this_thread::get_id() == this->tid){
 			if(this->closed) {
 				return;
@@ -498,13 +557,17 @@ void TCPSocket::recvInWorker() {
 						localRecvlist->pop_front();
 						if(recvCallback){
 							recvCallback(self,front,s);	
-							if(this->closed || this->shutdown) {
+							if(this->closed.load()) {
 								return;
 							}				
 						}					
 					}
 
 					this->mtx.lock();
+
+					if(this->recvTimeout > 0) {
+						this->lastRecvTime = std::chrono::steady_clock::now();
+					}
 
 					for( ; !localRecvlist->empty(); ) {
 						auto back = localRecvlist->back();
@@ -581,13 +644,21 @@ void TCPSocket::recvInWorker() {
 				if(recvCallback){
 					recvCallback(self,front,n);			
 				}
+
+				this->mtx.lock();
+
+				if(this->recvTimeout > 0) {
+					std::cout << "update lastRecvTime" << std::endl;
+					this->lastRecvTime = std::chrono::steady_clock::now();
+				}
+
 				if(size_t(n) < front->Len()) {
-					this->mtx.lock();
 					if(localVer == this->readableVer) {
 						this->readable = false;
 					}
-					this->mtx.unlock();
 				}
+
+				this->mtx.unlock();
 			} else {
 				this->mtx.lock();
 				if(n < 0 && errno == EAGAIN) {					
@@ -639,7 +710,16 @@ void TCPSocket::Close() {
 		if(this->closed) {
 			return;
 		}
-		this->closed = true;
+
+		auto sp = this->recvTimer.lock();
+		if(sp) {
+			sp->cancel();
+		}
+
+		this->recvTimeout = 0;
+		this->recvTimeoutCallback_ = nullptr;
+
+		this->closed.store(true);
 		::shutdown(this->fd,SHUT_RDWR);
 		poller_->Remove(shared_from_this());	
 

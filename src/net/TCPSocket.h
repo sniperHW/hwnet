@@ -6,11 +6,13 @@
 #include <functional>
 #include <fcntl.h>
 #include <thread>
+#include <chrono>
 #include "net/Buffer.h"
 #include "net/Poller.h"
 #include "net/Address.h"
 #include "net/SocketHelper.h"
 #include "net/any.h"
+#include "util/Timer.h"
 
 namespace hwnet {
 
@@ -50,6 +52,8 @@ public:
 	*  发送阻塞回调，如果设置了highwatersize和callback,当连接不可写，且待发送数据长度超过一定值时被回调
 	*/
 	typedef std::function<void (TCPSocket::Ptr&,size_t)> HighWaterCallback;
+
+	typedef std::function<void (TCPSocket::Ptr&)> RecvTimeoutCallback;
 
 private:
 
@@ -211,6 +215,8 @@ public:
 		return shared_from_this();	    
 	}	
 
+	TCPSocket::Ptr SetRecvTimeoutCallback(util::milliseconds timeout, const RecvTimeoutCallback &callback);
+
 	/*
 	 *  将socket添加到poller中,如果需要设置ErrorCallback,务必在Start之前设置。
 	 */
@@ -273,6 +279,8 @@ public:
 
 private:
 
+	void checkRecvTimeout();
+
 	bool highWater() {
 		return highWaterSize > 0 && bytes4Send > highWaterSize;
 	}
@@ -329,7 +337,7 @@ private:
 	int                    readableVer;	
 	bool                   writeable;
 	int                    writeableVer;
-	bool                   closed;
+	std::atomic_bool       closed;
 	bool                   closedOnFlush; //sendlist被清空后关闭连接
 	bool                   shutdown;
 	bool                   doing;
@@ -344,7 +352,11 @@ private:
 	any                    ud;
 	std::atomic_bool       started;
 	std::thread::id 	   tid;
-
+	std::list<std::function<void (void)>> closures;
+	util::milliseconds     recvTimeout;
+	RecvTimeoutCallback    recvTimeoutCallback_;
+	std::chrono::steady_clock::time_point lastRecvTime;
+	util::Timer::WeakPtr   recvTimer;
 
 };
 
