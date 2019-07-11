@@ -22,14 +22,15 @@ double getSeconds(struct timeval* tv)
 
 void Resolver::QueryChannel::OnActive(int event) {
   if(event & hwnet::Poller::ReadFlag()) {
-      this->r->poller_->PostClosure([](Resolver *r,int fd){
+      //将闭包抛到thread_pool中执行，保证单线程执行(thread_pool只有一个线程)
+      this->r->poller_->PostClosure(this->r->thread_pool,[](Resolver *r,int fd){
         ares_process_fd(r->ctx_, fd, ARES_SOCKET_BAD);
       },this->r,this->fd);
   }
 }
 
-Resolver::Resolver(hwnet::Poller* poller, Option opt)
-  : poller_(poller),ctx_(NULL),timerActive_(false)
+Resolver::Resolver(hwnet::Poller* poller, hwnet::ThreadPool  *thread_pool,Option opt)
+  : poller_(poller),thread_pool(thread_pool),ctx_(NULL),timerActive_(false)
 {
   static char lookups[] = "b";
   struct ares_options options;
@@ -65,7 +66,8 @@ bool Resolver::resolve(const std::string hostname, const Callback& cb)
 {
   QueryData* queryData = new QueryData(this, cb);
   if(queryData){
-      poller_->PostClosure([](Resolver *r,const std::string hostname,QueryData* queryData){
+      //将闭包抛到thread_pool中执行，保证单线程执行(thread_pool只有一个线程)
+      poller_->PostClosure(thread_pool,[](Resolver *r,const std::string hostname,QueryData* queryData){
         ares_gethostbyname(r->ctx_, hostname.c_str(), AF_INET, &Resolver::ares_host_callback, queryData);
         struct timeval tv;
         struct timeval* tvp = ares_timeout(r->ctx_, NULL, &tv);
@@ -82,7 +84,8 @@ bool Resolver::resolve(const std::string hostname, const Callback& cb)
 void Resolver::addTimer(double timeout) {
   timerActive_ = true;
   poller_->addTimerOnce(timeout*1000,[this](hwnet::util::Timer::Ptr t){
-      this->poller_->PostClosure([](Resolver *r){
+      //将闭包抛到thread_pool中执行，保证单线程执行(thread_pool只有一个线程)
+      this->poller_->PostClosure(this->thread_pool,[](Resolver *r){
         r->onTimer();
       },this);
   });

@@ -50,7 +50,7 @@ public:
 
   ~Resolver();
 
-  explicit Resolver(hwnet::Poller* poller, Option opt = kDNSandHostsFile);
+  explicit Resolver(hwnet::Poller* poller, hwnet::ThreadPool  *thread_pool,Option opt = kDNSandHostsFile);
 
   bool resolve(const std::string hostname, const Callback& cb);  
 
@@ -66,7 +66,8 @@ private:
     }
   };
 
-  hwnet::Poller *poller_;
+  hwnet::Poller      *poller_;
+  hwnet::ThreadPool  *thread_pool;
   ares_channel ctx_;
   typedef std::map<int, QueryChannel::Ptr> ChannelList;
   ChannelList channels_;

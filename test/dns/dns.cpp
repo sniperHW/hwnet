@@ -37,8 +37,10 @@ int main(int argc, char* argv[]) {
     return 0;
   } 
 
-
-  auto resolver = Resolver(&g_loop,argc == 1 ? Resolver::kDNSonly : Resolver::kDNSandHostsFile);
+  /*
+   *  这里threadpool只有一个线程，在Resolver中post的闭包保证了只在唯一的一个线程中执行
+  */
+  auto resolver = Resolver(&g_loop, &pool, argc == 1 ? Resolver::kDNSonly : Resolver::kDNSandHostsFile);
   if (argc == 1)
   {
     total = 3;
