@@ -22,24 +22,10 @@ double getSeconds(struct timeval* tv)
 
 void Resolver::QueryChannel::OnActive(int event) {
   if(event & hwnet::Poller::ReadFlag()) {
-    auto r_ = this->r.lock();
-    if(r_) {
-      auto fd = this->fd;
-      r_->pushClouserAndPostTask([r_,fd](){
-        ares_process_fd(r_->ctx_, fd, ARES_SOCKET_BAD);
-      });
-    }
+      this->r->poller_->PostClosure([](Resolver *r,int fd){
+        ares_process_fd(r->ctx_, fd, ARES_SOCKET_BAD);
+      },this->r,this->fd);
   }
-}
-
-void Resolver::Do() {
-    std::lock_guard<std::mutex> guard(this->mtx);
-    while(!this->closures.empty()){
-      auto front = this->closures.front();
-      this->closures.pop_front();
-      front();
-    }
-    this->doing = false;
 }
 
 Resolver::Resolver(hwnet::Poller* poller, Option opt)
@@ -79,28 +65,26 @@ bool Resolver::resolve(const std::string hostname, const Callback& cb)
 {
   QueryData* queryData = new QueryData(this, cb);
   if(queryData){
-    auto sp = shared_from_this();
-    this->pushClouserAndPostTask([queryData,hostname,sp](){
-      ares_gethostbyname(sp->ctx_, hostname.c_str(), AF_INET, &Resolver::ares_host_callback, queryData);
-      struct timeval tv;
-      struct timeval* tvp = ares_timeout(sp->ctx_, NULL, &tv);
-      double timeout = getSeconds(tvp);
+      poller_->PostClosure([](Resolver *r,const std::string hostname,QueryData* queryData){
+        ares_gethostbyname(r->ctx_, hostname.c_str(), AF_INET, &Resolver::ares_host_callback, queryData);
+        struct timeval tv;
+        struct timeval* tvp = ares_timeout(r->ctx_, NULL, &tv);
+        double timeout = getSeconds(tvp);
 
-      if(!sp->timerActive_) {
-          sp->addTimer(timeout);
-      }
-    });
+        if(!r->timerActive_) {
+            r->addTimer(timeout);
+        }
+      },this,hostname,queryData);
   }
   return queryData != NULL;  
 }
 
 void Resolver::addTimer(double timeout) {
   timerActive_ = true;
-  auto sp = shared_from_this();
-  sp->poller_->addTimerOnce(timeout*1000,[sp](hwnet::util::Timer::Ptr t){
-      sp->pushClouserAndPostTask([sp](){
-        sp->onTimer();
-      });            
+  poller_->addTimerOnce(timeout*1000,[this](hwnet::util::Timer::Ptr t){
+      this->poller_->PostClosure([](Resolver *r){
+        r->onTimer();
+      },this);
   });
 }
 
@@ -135,7 +119,7 @@ void Resolver::onQueryResult(int status, struct hostent* result, const Callback&
 void Resolver::onSockCreate(int sockfd, int type)
 {
   assert(channels_.find(sockfd) == channels_.end());
-  auto sp = QueryChannel::Ptr(new QueryChannel(shared_from_this(),sockfd));
+  auto sp = QueryChannel::Ptr(new QueryChannel(this,sockfd));
   this->poller_->Add(sp,hwnet::Poller::Read | hwnet::Poller::ET);
   channels_[sockfd] = sp;
 }

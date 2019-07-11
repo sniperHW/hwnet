@@ -22,9 +22,9 @@ void resolveCallback(const std::string& host, const hwnet::Addr& addr)
     quit();
 }
 
-void resolve(const Resolver::Ptr &res, const std::string& host)
+void resolve(Resolver &res, const std::string& host)
 {
-  res->resolve(host, std::bind(&resolveCallback, host, std::placeholders::_1));
+  res.resolve(host, std::bind(&resolveCallback, host, std::placeholders::_1));
 }
 
 int main(int argc, char* argv[]) {
@@ -38,7 +38,7 @@ int main(int argc, char* argv[]) {
   } 
 
 
-  auto resolver = Resolver::New(&g_loop,argc == 1 ? Resolver::kDNSonly : Resolver::kDNSandHostsFile);
+  auto resolver = Resolver(&g_loop,argc == 1 ? Resolver::kDNSonly : Resolver::kDNSandHostsFile);
   if (argc == 1)
   {
     total = 3;
