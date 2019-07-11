@@ -757,7 +757,6 @@ void TCPSocket::recvInWorker() {
 				this->mtx.lock();
 
 				if(this->recvTimeout > 0) {
-					std::cout << "update lastRecvTime" << std::endl;
 					this->lastRecvTime = std::chrono::steady_clock::now();
 				}
 
