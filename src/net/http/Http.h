@@ -125,6 +125,10 @@ public:
 
 	typedef std::shared_ptr<HttpRequest> Ptr;
 
+	std::string GetMethod() {
+		return std::string(method_strings[this->packet->method]);
+	}
+
 	HttpRequest& SetMethod(unsigned int method) {
 		this->packet->method = method;
 		return *this;
