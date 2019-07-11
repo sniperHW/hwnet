@@ -39,7 +39,7 @@ public:
 	}
 private:
 
-	ClosureTask(const Callback &cb):mCallback(cb){
+	explicit ClosureTask(const Callback &cb):mCallback(cb){
 
 	}
 

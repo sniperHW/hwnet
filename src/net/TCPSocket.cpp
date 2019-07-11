@@ -149,7 +149,8 @@ TCPSocket::Ptr TCPSocket::SetRecvTimeoutCallback(util::milliseconds timeout, con
 		this->recvTimeout = timeout;
 		this->recvTimeoutCallback_ = callback;	
 
-		this->recvTimer = this->poller_->addTimer(100,[selfSP](hwnet::util::Timer::Ptr t){
+		this->recvTimer = this->poller_->addTimer(100,[selfSP](hwnet::util::Timer::Ptr _){
+			(void)_;
 			auto post = false;
 			selfSP->mtx.lock();
 			if(selfSP->recvTimeout > 0 && 

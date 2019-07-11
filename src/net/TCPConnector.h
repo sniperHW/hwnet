@@ -50,7 +50,7 @@ private:
 
 	}
 
-	bool checkError(int &err);
+	bool checkError();
 
 	TCPConnector(const TCPConnector&) = delete;
 	TCPConnector& operator = (const TCPConnector&) = delete;

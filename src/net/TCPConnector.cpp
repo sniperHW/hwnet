@@ -12,7 +12,8 @@ TCPConnector::~TCPConnector() {
 
 }
 
-void TCPConnector::connectTimeout(util::Timer::Ptr t,TCPConnector::Ptr self) {
+void TCPConnector::connectTimeout(util::Timer::Ptr _,TCPConnector::Ptr self) {
+	(void)_;
 	auto post = false;
 	self->mtx.lock();
 	if(!self->doing){
@@ -79,14 +80,14 @@ bool TCPConnector::Connect(const ConnectCallback &connectFn,const ErrorCallback 
 }
 
 
-bool TCPConnector::checkError(int &err) {
-	socklen_t len = sizeof(err);
-	if(getsockopt(this->fd, SOL_SOCKET, SO_ERROR, &err, &len) == -1){
-		err = errno;
+bool TCPConnector::checkError() {
+	socklen_t len = sizeof(this->err);
+	if(getsockopt(this->fd, SOL_SOCKET, SO_ERROR, &this->err, &len) == -1){
+		this->err = errno;
 	    return true;
 	}
 
-	if(err) {
+	if(this->err) {
 		return true;				
 	}
 
@@ -96,7 +97,7 @@ bool TCPConnector::checkError(int &err) {
 void TCPConnector::OnActive(int _) {
 	(void)_;	
 
-	this->gotError = this->checkError(this->err);
+	this->gotError = this->checkError();
 
 	this->poller_->Remove(shared_from_this());
 
