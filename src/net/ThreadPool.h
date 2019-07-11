@@ -9,6 +9,7 @@
 #include <mutex>
 #include <atomic>
 #include <deque>
+#include <functional>
 
 
 namespace hwnet {
