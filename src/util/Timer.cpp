@@ -82,7 +82,7 @@ void TimerRoutine::wait(milliseconds now) {
 		this->cv.wait_for(this->mgr.mtx,this->waitTime * 1ms);
 	} else {
 		auto top = this->mgr.top();
-		if(now > top->mExpiredTime) {
+		if(top->mExpiredTime > now) {
 			this->waitting = true;
 			this->waitTime = top->mExpiredTime - now;
 			this->cv.wait_for(this->mgr.mtx,this->waitTime * 1ms);			
