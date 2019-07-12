@@ -40,15 +40,15 @@ public:
 
     using Ptr = std::shared_ptr<Timer>;
     using WeakPtr = std::weak_ptr<Timer>;
-    using Callback = std::function<void(void)>;
+    using Callback = std::function<void(const Ptr&)>;
 
     int cancel();
 
 private:
 
 
-    Timer(const milliseconds &ExpiredTime, const milliseconds &timeout, bool once):
-    		mExpiredTime(ExpiredTime),mTimeout(timeout),mOnce(once),mMgr(nullptr),mIndex(0),mStatus(0){
+    Timer(const milliseconds &ExpiredTime, const milliseconds &timeout, bool once,Callback &&cb):
+    	mCallback(cb),mExpiredTime(ExpiredTime),mTimeout(timeout),mOnce(once),mMgr(nullptr),mIndex(0),mStatus(0){
     	}
 
     milliseconds getLeftTime(const milliseconds &now) const {
@@ -95,8 +95,8 @@ public:
     template<typename F, typename ...TArgs>
     Timer::WeakPtr addTimer(milliseconds now,milliseconds timeout, F&& callback, TArgs&& ...args)
     {
-        auto timer = Timer::Ptr(new Timer(now + timeout,timeout,false));
-        timer->mCallback = std::bind(std::forward<F>(callback), timer, std::forward<TArgs>(args)...);
+        auto timer = Timer::Ptr(new Timer(now + timeout,timeout,
+        	false,std::bind(std::forward<F>(callback), std::placeholders::_1, std::forward<TArgs>(args)...)));
         this->insertLock(timer);
         return timer;
     }
@@ -104,8 +104,8 @@ public:
     template<typename F, typename ...TArgs>
     Timer::WeakPtr addTimerOnce(milliseconds now,milliseconds timeout, F&& callback, TArgs&& ...args)
     {
-        auto timer = Timer::Ptr(new Timer(now + timeout,timeout,true));
-        timer->mCallback = std::bind(std::forward<F>(callback), timer, std::forward<TArgs>(args)...);      
+        auto timer = Timer::Ptr(new Timer(now + timeout,timeout,
+        	true,std::bind(std::forward<F>(callback), std::placeholders::_1, std::forward<TArgs>(args)...)));      
         this->insertLock(timer);
         return timer;
     }
@@ -322,8 +322,8 @@ public:
     template<typename F, typename ...TArgs>
     Timer::WeakPtr addTimer(milliseconds timeout, F&& callback, TArgs&& ...args)
     {
-        auto timer = Timer::Ptr(new Timer(getMilliseconds() + timeout,timeout,false));
-        timer->mCallback = std::bind(std::forward<F>(callback), timer, std::forward<TArgs>(args)...);
+        auto timer = Timer::Ptr(new Timer(getMilliseconds() + timeout,timeout,
+        	false,std::bind(std::forward<F>(callback), std::placeholders::_1, std::forward<TArgs>(args)...)));
 
         std::lock_guard<std::mutex> guard(this->mgr.mtx);
         this->mgr.insert(timer);
@@ -337,8 +337,8 @@ public:
     template<typename F, typename ...TArgs>
     Timer::WeakPtr addTimerOnce(milliseconds timeout, F&& callback, TArgs&& ...args)
     {
-        auto timer = Timer::Ptr(new Timer(getMilliseconds() + timeout,timeout,true));
-        timer->mCallback = std::bind(std::forward<F>(callback), timer, std::forward<TArgs>(args)...);
+        auto timer = Timer::Ptr(new Timer(getMilliseconds() + timeout,timeout,
+        	true,std::bind(std::forward<F>(callback), std::placeholders::_1, std::forward<TArgs>(args)...)));
 
         std::lock_guard<std::mutex> guard(this->mgr.mtx);
         this->mgr.insert(timer);

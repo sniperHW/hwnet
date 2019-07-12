@@ -29,7 +29,7 @@ void HttpResponse::WriteHeader(const std::function<void ()> &writeOk) {
 	std::string header;
 	this->packet->MakeHeader(HttpPacket::response,header);
 	if(writeOk){
-		this->session->s->SetFlushCallback([writeOk](TCPSocket::Ptr &_){
+		this->session->s->SetFlushCallback([writeOk](const TCPSocket::Ptr &_){
 			(void)_;
 			writeOk();
 		});
@@ -39,7 +39,7 @@ void HttpResponse::WriteHeader(const std::function<void ()> &writeOk) {
 
 void HttpResponse::WriteBody(const std::string &body,const std::function<void ()> &writeOk) {
 	if(writeOk){
-		this->session->s->SetFlushCallback([writeOk](TCPSocket::Ptr &_){
+		this->session->s->SetFlushCallback([writeOk](const TCPSocket::Ptr &_){
 			(void)_;
 			writeOk();
 		});
@@ -52,7 +52,7 @@ void HttpRequest::WriteHeader(const std::function<void ()> &writeOk) {
 	std::string header;
 	this->packet->MakeHeader(HttpPacket::request,header);
 	if(writeOk){
-		this->session->s->SetFlushCallback([writeOk](TCPSocket::Ptr &_){
+		this->session->s->SetFlushCallback([writeOk](const TCPSocket::Ptr &_){
 			(void)_;	
 			writeOk();
 		});
@@ -62,7 +62,7 @@ void HttpRequest::WriteHeader(const std::function<void ()> &writeOk) {
 
 void HttpRequest::WriteBody(const std::string &body,const std::function<void ()> &writeOk) {
 	if(writeOk){
-		this->session->s->SetFlushCallback([writeOk](TCPSocket::Ptr &_){
+		this->session->s->SetFlushCallback([writeOk](const TCPSocket::Ptr &_){
 			(void)_;
 			writeOk();
 		});
@@ -83,7 +83,7 @@ void HttpSession::Send(const std::string &str,bool closedOnFlush){
 	this->s->Send(str,closedOnFlush);
 }
 
-void HttpSession::onData(TCPSocket::Ptr &ss,const Buffer::Ptr &buff,size_t n) {
+void HttpSession::onData(const TCPSocket::Ptr &ss,const Buffer::Ptr &buff,size_t n) {
 	auto session = any_cast<HttpSession*>(ss->GetUserData());
 	auto ptr = buff->BuffPtr();
 	std::cout << ptr << std::endl;
@@ -94,12 +94,12 @@ void HttpSession::onData(TCPSocket::Ptr &ss,const Buffer::Ptr &buff,size_t n) {
 	session->Recv();
 }	
 
-void HttpSession::onClose(TCPSocket::Ptr &ss) {
+void HttpSession::onClose(const TCPSocket::Ptr &ss) {
 	auto session = any_cast<HttpSession*>(ss->GetUserData());
 	session->onRequest = nullptr;
 }
 
-void HttpSession::onError(TCPSocket::Ptr &ss,int err) {
+void HttpSession::onError(const TCPSocket::Ptr &ss,int err) {
 	ss->Close();
 }
 

@@ -15,11 +15,11 @@ void testTimerRoutine() {
 	hwnet::util::TimerRoutine routine(hwnet::util::TimerMgr::normal);
 
 
-	routine.addTimer(100,[](hwnet::util::Timer::Ptr t){
+	routine.addTimer(100,[](const hwnet::util::Timer::Ptr & t){
 		std::cout << "timer 100" << std::endl;
 	});
 
-	routine.addTimer(200,[](hwnet::util::Timer::Ptr t){
+	routine.addTimer(200,[](const hwnet::util::Timer::Ptr & t){
 		std::cout << "timer 200" << std::endl;
 	});	
 
@@ -33,15 +33,15 @@ int main() {
 	{
 		hwnet::util::TimerMgr mgr(hwnet::util::TimerMgr::normal);
 
-		mgr.addTimer(0,10,[](hwnet::util::Timer::Ptr t){
+		mgr.addTimer(0,10,[](const hwnet::util::Timer::Ptr & t){
 			std::cout << "timer 10" << std::endl;
 		});
 
-		mgr.addTimer(0,20,[](hwnet::util::Timer::Ptr t){
+		mgr.addTimer(0,20,[](const hwnet::util::Timer::Ptr & t){
 			std::cout << "timer 20" << std::endl;
 		});
 
-		mgr.addTimer(0,5,[](hwnet::util::Timer::Ptr t){
+		mgr.addTimer(0,5,[](const hwnet::util::Timer::Ptr &t){
 			std::cout << "timer 5" << std::endl;
 			std::cout << "timer 5 cancel ret:" << t->cancel() << std::endl;
 		});
@@ -64,7 +64,7 @@ int main() {
 		
 		hwnet::util::TimerMgr mgr(hwnet::util::TimerMgr::normal);
 
-		mgr.addTimer(0,10,[](hwnet::util::Timer::Ptr t){
+		mgr.addTimer(0,10,[](const hwnet::util::Timer::Ptr & t){
 			std::cout << "timer 10" << std::endl;
 		});
 
@@ -84,7 +84,7 @@ int main() {
 
 		hwnet::util::TimerMgr mgr(hwnet::util::TimerMgr::compensate);
 
-		mgr.addTimer(0,10,[](hwnet::util::Timer::Ptr t){
+		mgr.addTimer(0,10,[](const hwnet::util::Timer::Ptr & t){
 			std::cout << "timer 10" << std::endl;
 		});
 

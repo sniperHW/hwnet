@@ -234,9 +234,9 @@ private:
 
 	static int on_message_complete(http_parser *parser);
 
-	static void onData(TCPSocket::Ptr &ss,const Buffer::Ptr &buff,size_t n);
-	static void onClose(TCPSocket::Ptr &ss);
-	static void onError(TCPSocket::Ptr &ss,int err);
+	static void onData(const TCPSocket::Ptr &ss,const Buffer::Ptr &buff,size_t n);
+	static void onClose(const TCPSocket::Ptr &ss);
+	static void onError(const TCPSocket::Ptr &ss,int err);
 
 
 	HttpSession(TCPSocket::Ptr &s,int side):s(s),side(side) {

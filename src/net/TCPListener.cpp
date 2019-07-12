@@ -54,8 +54,7 @@ void TCPListener::Do() {
 		this->mtx.unlock();
 		auto err = this->accept(&fd_,&addr_,&len);
 		if(0 == err) {
-			auto self = shared_from_this();
-			this->onNewConn_(self,fd_,Addr::MakeBySockAddr(&addr_,len));
+			this->onNewConn_(shared_from_this(),fd_,Addr::MakeBySockAddr(&addr_,len));
 		} else {
 			if(err == EAGAIN) {
 				std::lock_guard<std::mutex> guard(this->mtx);
@@ -65,8 +64,7 @@ void TCPListener::Do() {
 				}
 			} else {
 				if(nullptr != this->onError_){
-					auto self = shared_from_this();
-					this->onError_(self,err);
+					this->onError_(shared_from_this(),err);
 					break;
 				}
 			}

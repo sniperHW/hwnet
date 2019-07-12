@@ -12,11 +12,11 @@ TCPConnector::~TCPConnector() {
 
 }
 
-void TCPConnector::connectTimeout(util::Timer::Ptr _,TCPConnector::Ptr self) {
-	(void)_;
+void TCPConnector::connectTimeout(const util::Timer::Ptr &t,TCPConnector::Ptr self) {
 	auto post = false;
 	self->mtx.lock();
-	if(!self->doing){
+	if(t == self->connectTimer.lock() && !self->doing){
+		self->connectTimer.reset();
 		self->doing = true;
 		post = true;
 		self->gotError = true;
@@ -101,9 +101,10 @@ void TCPConnector::OnActive(int _) {
 
 	this->poller_->Remove(shared_from_this());
 
-	auto p = this->connectTimer.lock();
-	if(p) {
+	
+	if(auto p = this->connectTimer.lock()) {
 		p->cancel();
+		this->connectTimer.reset();
 	}
 	
 	auto post = false;

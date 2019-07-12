@@ -29,46 +29,46 @@ Poller poller_;
 
 int packetSize = 4096;
 
-void onDataServer(TCPSocket::Ptr &ss,const Buffer::Ptr &buff,size_t n) {
+void onDataServer(const TCPSocket::Ptr &ss,const Buffer::Ptr &buff,size_t n) {
 	bytes += n;
 	count++;
 	ss->Send(buff,n);	
 	//ss->Recv(Buffer::New(packetSize,packetSize));
 }
 
-void onDataClient(TCPSocket::Ptr &ss,const Buffer::Ptr &buff,size_t n) {
+void onDataClient(const TCPSocket::Ptr &ss,const Buffer::Ptr &buff,size_t n) {
 	ss->Send(buff,n);	
 	//ss->Recv(Buffer::New(packetSize,packetSize));
 }
 
 
-void onClose(TCPSocket::Ptr &ss) {
+void onClose(const TCPSocket::Ptr &ss) {
 	clientcount--;
 	printf("onClose\n");
 }
 
-void onError(TCPSocket::Ptr &ss,int err) {
+void onError(const TCPSocket::Ptr &ss,int err) {
 	printf("onError error:%d %s\n",err,strerror(err));
 	ss->Close();
 }
 
-void onAcceptError(TCPListener::Ptr &l,int err) {
+void onAcceptError(const TCPListener::Ptr &l,int err) {
 	printf("onAcceptError %s\n",strerror(err));
 }
 
-void onClient(TCPListener::Ptr &l,int fd,const Addr &addr) {
+void onClient(const TCPListener::Ptr &l,int fd,const Addr &addr) {
 	clientcount++;
 	auto sc = TCPSocket::New(&poller_,fd);
 	auto recvBuff = Buffer::New(packetSize,packetSize);
 	sc->SetRecvCallback(onDataServer)->SetCloseCallback(onClose)->SetErrorCallback(onError);
-	sc->SetFlushCallback([recvBuff](TCPSocket::Ptr &s){
+	sc->SetFlushCallback([recvBuff](const TCPSocket::Ptr &s){
 		s->Recv(recvBuff);
 	});
-	sc->SetRecvTimeoutCallback(5000,[](TCPSocket::Ptr &s){
+	sc->SetRecvTimeoutCallback(5000,[](const TCPSocket::Ptr &s){
 		std::cout << "receive timeout" << std::endl;
 		s->Close();
 	});
-	sc->SetSendTimeoutCallback(5000,[](TCPSocket::Ptr &s){
+	sc->SetSendTimeoutCallback(5000,[](const TCPSocket::Ptr &s){
 		std::cout << "send timeout" << std::endl;
 		s->Close();
 	});
@@ -98,7 +98,7 @@ void onConnect(int fd) {
 	auto buff = Buffer::New(msg);
 	auto sc = TCPSocket::New(&poller_,fd);
 	sc->SetRecvCallback(onDataClient)->SetErrorCallback(onError);
-	sc->SetFlushCallback([buff](TCPSocket::Ptr &s){
+	sc->SetFlushCallback([buff](const TCPSocket::Ptr &s){
 		s->Recv(buff);
 	});
 	sc->Start();

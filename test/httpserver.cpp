@@ -37,7 +37,7 @@ std::string longstrings[] = {
 };
 
 
-void onClient(TCPListener::Ptr &l,int fd,const Addr &addr) {
+void onClient(const TCPListener::Ptr &l,int fd,const Addr &addr) {
 	auto sc = TCPSocket::New(&poller_,fd);
 	auto session = HttpSession::New(sc,HttpSession::ServerSide);
 	session->Start([session](HttpRequest::Ptr &req,HttpResponse::Ptr &resp) {
@@ -63,7 +63,7 @@ void onClient(TCPListener::Ptr &l,int fd,const Addr &addr) {
 	});
 }
 
-void onAcceptError(TCPListener::Ptr &l,int err) {
+void onAcceptError(const TCPListener::Ptr &l,int err) {
 	printf("onAcceptError %s\n",strerror(err));
 }
 

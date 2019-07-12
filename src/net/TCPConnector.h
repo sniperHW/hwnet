@@ -43,7 +43,7 @@ public:
 
 private:
 
-	static void connectTimeout(util::Timer::Ptr t,TCPConnector::Ptr self);
+	static void connectTimeout(const util::Timer::Ptr &t,TCPConnector::Ptr self);
 
 	TCPConnector(Poller *poller_,const Addr &remote,const Addr &local):
 		remoteAddr(remote),localAddr(local),started(false),poller_(poller_),doing(false),gotError(false),err(0) {

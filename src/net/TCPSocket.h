@@ -33,31 +33,31 @@ public:
 	/*
 	*  接收回调，作为Recv的其中一个参数被传入
 	*/
-	typedef std::function<void (TCPSocket::Ptr&,const Buffer::Ptr &buff,size_t n)> RecvCallback;
+	typedef std::function<void (const TCPSocket::Ptr&,const Buffer::Ptr &buff,size_t n)> RecvCallback;
 	
 	/*
 	*  当sendList全部冲刷完之后回调
 	*/
-	typedef std::function<void (TCPSocket::Ptr&)> FlushCallback;
+	typedef std::function<void (const TCPSocket::Ptr&)> FlushCallback;
 
 	/*
 	*  错误回调，当连接出现错误时回调，可根据错误码做适当处理，如果没有设置，当错误出现时将直接调用Close 
 	*/
-	typedef std::function<void (TCPSocket::Ptr&,int)> ErrorCallback;
+	typedef std::function<void (const TCPSocket::Ptr&,int)> ErrorCallback;
 	
 	/*
 	*  连接关闭回调，连接被销毁前回调，确保只调用一次 
 	*/
-	typedef std::function<void (TCPSocket::Ptr&)> CloseCallback;
+	typedef std::function<void (const TCPSocket::Ptr&)> CloseCallback;
 
 	/*
 	*  发送阻塞回调，如果设置了highwatersize和callback,当连接不可写，且待发送数据长度超过一定值时被回调
 	*/
-	typedef std::function<void (TCPSocket::Ptr&,size_t)> HighWaterCallback;
+	typedef std::function<void (const TCPSocket::Ptr&,size_t)> HighWaterCallback;
 
-	typedef std::function<void (TCPSocket::Ptr&)> RecvTimeoutCallback;
+	typedef std::function<void (const TCPSocket::Ptr&)> RecvTimeoutCallback;
 
-	typedef std::function<void (TCPSocket::Ptr&)> SendTimeoutCallback;
+	typedef std::function<void (const TCPSocket::Ptr&)> SendTimeoutCallback;
 
 private:
 
@@ -298,7 +298,7 @@ private:
 
 	void checkTimeout(hwnet::util::Timer::Ptr t);
 
-	static void onTimer(hwnet::util::Timer::Ptr t,TCPSocket::Ptr s);
+	static void onTimer(const hwnet::util::Timer::Ptr &t,TCPSocket::Ptr s);
 
 	bool highWater() {
 		return highWaterSize > 0 && bytes4Send > highWaterSize;

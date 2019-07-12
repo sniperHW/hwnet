@@ -17,9 +17,9 @@ class TCPListener : public Task, public Channel ,public std::enable_shared_from_
 public:
 	typedef std::shared_ptr<TCPListener> Ptr;
 
-	typedef std::function<void (Ptr&,int,const Addr&)> OnNewConn;
+	typedef std::function<void (const Ptr&,int,const Addr&)> OnNewConn;
 
-	typedef std::function<void (Ptr&,int)> OnError;
+	typedef std::function<void (const Ptr&,int)> OnError;
 
 
 	static TCPListener::Ptr New(Poller *poller_,const Addr &addr) {
@@ -51,7 +51,7 @@ private:
 
 	int accept(int *fd,struct sockaddr *addr,socklen_t *len);
 
-	TCPListener(Poller *poller_,const Addr &addr):fd(-1),poller_(poller_),addr(addr),started(false),stop(false),/*readable(false),*/readableVer(0),doing(false){
+	TCPListener(Poller *poller_,const Addr &addr):fd(-1),poller_(poller_),addr(addr),started(false),stop(false),readableVer(0),doing(false){
 
 	}
 

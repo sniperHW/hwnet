@@ -6,8 +6,8 @@ using namespace std::chrono_literals;
 
 
 void Timer::operator() ()
-{
-    mCallback();   
+{	
+    mCallback(shared_from_this());   
 }
 
 int Timer::cancel() {

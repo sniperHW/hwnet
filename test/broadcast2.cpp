@@ -123,7 +123,7 @@ private:
 };
 
 
-void onDataServer(TCPSocket::Ptr &ss,const Buffer::Ptr &buff,size_t n) {
+void onDataServer(const TCPSocket::Ptr &ss,const Buffer::Ptr &buff,size_t n) {
 	//bytes += n;
 	Codecc *code = any_cast<Codecc*>(ss->GetUserData());
 	code->onData(n);
@@ -144,7 +144,7 @@ void onDataServer(TCPSocket::Ptr &ss,const Buffer::Ptr &buff,size_t n) {
 	ss->Recv(code->GetRecvBuffer());
 }
 
-void onDataClient(TCPSocket::Ptr &ss,const Buffer::Ptr &buff,size_t n) {
+void onDataClient(const TCPSocket::Ptr &ss,const Buffer::Ptr &buff,size_t n) {
 	Codecc *code = any_cast<Codecc*>(ss->GetUserData());
 	code->onData(n);
 	for( ; ; ) {
@@ -170,21 +170,21 @@ void onDataClient(TCPSocket::Ptr &ss,const Buffer::Ptr &buff,size_t n) {
 }
 
 
-void onClose(TCPSocket::Ptr &ss) {
+void onClose(const TCPSocket::Ptr &ss) {
 	remove(ss);
 	printf("onClose\n");
 }
 
-void onError(TCPSocket::Ptr &ss,int err) {
+void onError(const TCPSocket::Ptr &ss,int err) {
 	printf("onError fd:%d error:%d %s\n",ss->Fd(),err,strerror(err));
 	ss->Close();
 }
 
-void onAcceptError(TCPListener::Ptr &l,int err) {
+void onAcceptError(const TCPListener::Ptr &l,int err) {
 	printf("onAcceptError %s\n",strerror(err));
 }
 
-void onClient(TCPListener::Ptr &l,int fd,const Addr &addr) {
+void onClient(const TCPListener::Ptr &l,int fd,const Addr &addr) {
 	ThreadPool *t = pools[fd%pools.size()];
 	auto sc = TCPSocket::New(&poller_,t,fd);
 	auto code = new Codecc(packetSize);

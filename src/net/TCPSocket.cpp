@@ -163,8 +163,7 @@ void TCPSocket::checkTimeout(hwnet::util::Timer::Ptr t) {
 		this->sendTimeoutCallback_ = nullptr;
 
 		this->mtx.unlock();
-		auto sp = shared_from_this();
-		cb(sp);
+		cb(shared_from_this());
 		this->mtx.lock();
 	}
 
@@ -177,23 +176,19 @@ void TCPSocket::checkTimeout(hwnet::util::Timer::Ptr t) {
 		this->recvTimeoutCallback_ = nullptr;
 
 		this->mtx.unlock();
-		auto sp = shared_from_this();
-		cb(sp);
+		cb(shared_from_this());
 		this->mtx.lock();
 	}
 
 	if(this->sendTimeout == 0 && this->recvTimeout == 0) {
-		auto sp = this->timer.lock();
-		if(sp) {
-			sp->cancel();
-			this->timer.reset();
-		}
+		t->cancel();
+		this->timer.reset();
 	}
 
 }
 
 
-void TCPSocket::onTimer(hwnet::util::Timer::Ptr t,TCPSocket::Ptr s) {
+void TCPSocket::onTimer(const hwnet::util::Timer::Ptr &t,TCPSocket::Ptr s) {
 	auto post = false;
 
 	s->mtx.lock();
@@ -239,8 +234,7 @@ TCPSocket::Ptr TCPSocket::SetSendTimeoutCallback(util::milliseconds timeout, con
 		this->sendTimeoutCallback_ = callback;			
 		this->registerTimer(timerSend);
 	} else if(this->recvTimeout == 0) {
-		auto sp = this->timer.lock();
-		if(sp) {
+		if(auto sp = this->timer.lock()) {
 			sp->cancel();
 			this->timer.reset();
 		}		
@@ -260,8 +254,7 @@ TCPSocket::Ptr TCPSocket::SetRecvTimeoutCallback(util::milliseconds timeout, con
 		this->recvTimeoutCallback_ = callback;	
 		this->registerTimer(timerRecv);
 	} else if(this->sendTimeout == 0) {
-		auto sp = this->timer.lock();
-		if(sp) {
+		if(auto sp = this->timer.lock()) {
 			sp->cancel();
 			this->timer.reset();			
 		}		
@@ -565,15 +558,13 @@ void TCPSocket::sendInWorker() {
 	switch(t){
 		case 1:{
 			if(highWaterCallback){
-				auto self = shared_from_this();
-				highWaterCallback(self,bytes4Send_);
+				highWaterCallback(shared_from_this(),bytes4Send_);
 			}			
 		}
 		break;
 		case 2:{
 			if(flushCallback){
-				auto self = shared_from_this();
-				flushCallback(self);
+				flushCallback(shared_from_this());
 			}
 			if(closedOnFlush_){
 				this->Close();
@@ -582,8 +573,7 @@ void TCPSocket::sendInWorker() {
 		break;
 		case 3:{
 			if(errorCallback) {
-				auto self = shared_from_this();
-				errorCallback(self,err);
+				errorCallback(shared_from_this(),err);
 			} else {
 				this->Close();
 			}				
@@ -842,8 +832,7 @@ void TCPSocket::doClose() {
 	}
 
 	if(callback) {
-		auto self = shared_from_this();
-		callback(self);
+		callback(shared_from_this());
 	}
 }
 
