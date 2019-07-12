@@ -299,6 +299,36 @@ void TCPSocket::Do() {
 	}
 }
 
+
+
+void TCPSocket::_recv(const Buffer::Ptr &buff,bool &post) {
+	if(this->closed) {
+		return;
+	}
+
+	if(this->recvCallback_ == nullptr) {
+		return;
+	}
+
+	auto empty = this->recvListEmpty();
+
+
+#ifdef GATHER_RECV
+	ptrRecvlist->push_back(buff);
+#else
+	recvList.push_back(buff);
+#endif
+
+	if(this->recvTimeout > 0 && empty) {
+		this->resetRecvTimer();
+	}
+
+	if(!this->doing && this->readable) {
+		this->doing = true;
+		post = true;
+	}	
+}
+
 void TCPSocket::Recv(const Buffer::Ptr &buff) {
 	if(buff == nullptr) {
 		return;
@@ -309,64 +339,39 @@ void TCPSocket::Recv(const Buffer::Ptr &buff) {
 	}
 
 	auto post = false;
-	{
-		if(std::this_thread::get_id() == this->tid){
-			if(this->closed) {
-				return;
-			}
+	
+	if(std::this_thread::get_id() == this->tid){
+		_recv(buff,post);
+	} else {
 
-			if(this->recvCallback_ == nullptr) {
-				return;
-			}
-
-			auto empty = this->recvListEmpty();
-
-
-#ifdef GATHER_RECV
-			ptrRecvlist->push_back(buff);
-#else
-			recvList.push_back(buff);
-#endif
-
-			if(this->recvTimeout > 0 && empty) {
-				this->resetRecvTimer();
-			}
-
-			if(!this->doing && this->readable) {
-				this->doing = true;
-				post = true;
-			}
-		} else {
-
-			std::lock_guard<std::mutex> guard(this->mtx);
-			if(this->closed) {
-				return;
-			}
-
-			if(this->recvCallback_ == nullptr) {
-				return;
-			}
-
-			auto empty = this->recvListEmpty();
-
-#ifdef GATHER_RECV
-			ptrRecvlist->push_back(buff);
-#else
-			recvList.push_back(buff);
-#endif
-
-			if(this->recvTimeout > 0 && empty) {
-				this->resetRecvTimer();
-			}
-
-			if(!this->doing && this->readable) {
-				this->doing = true;
-				post = true;
-			}		
-		}
+		std::lock_guard<std::mutex> guard(this->mtx);
+		_recv(buff,post);		
 	}
+	
 	if(post) {			
 		poller_->PostTask(shared_from_this(),this->pool_);
+	}
+}
+
+void TCPSocket::_send(const Buffer::Ptr &buff,size_t len,bool closedOnFlush_,bool &post) {
+	if(this->closed || this->shutdown || this->closedOnFlush) {
+		return;
+	}
+
+	this->closedOnFlush = closedOnFlush_;
+
+	auto empty = this->ptrSendlist->empty();
+
+	this->ptrSendlist->push_back(getSendContext(this->fd,buff,len));
+	this->bytes4Send += len;
+
+	if(this->sendTimeout > 0 && empty) {
+		this->resetSendTimer();
+	}
+
+	if(!this->doing && (this->writeable || this->highWater())) {
+		this->doing = true;
+		post = true;
 	}
 }
 
@@ -392,50 +397,14 @@ void TCPSocket::Send(const Buffer::Ptr &buff,size_t len,bool closedOnFlush_) {
 	}
 
 	auto post = false;
-	{
-		if(std::this_thread::get_id() == this->tid){
-			if(this->closed || this->shutdown || this->closedOnFlush) {
-				return;
-			}
 
-			this->closedOnFlush = closedOnFlush_;
-
-			auto empty = this->ptrSendlist->empty();
-
-			this->ptrSendlist->push_back(getSendContext(this->fd,buff,len));
-			this->bytes4Send += len;
-
-			if(this->sendTimeout > 0 && empty) {
-				this->resetSendTimer();
-			}
-
-			if(!this->doing && (this->writeable || this->highWater())) {
-				this->doing = true;
-				post = true;
-			}
-		} else {
-			std::lock_guard<std::mutex> guard(this->mtx);
-			if(this->closed || this->shutdown || this->closedOnFlush) {
-				return;
-			}
-
-			this->closedOnFlush = closedOnFlush_;
-
-			auto empty = this->ptrSendlist->empty();
-
-			this->ptrSendlist->push_back(getSendContext(this->fd,buff,len));
-			this->bytes4Send += len;
-
-			if(this->sendTimeout > 0 && empty) {
-				this->resetSendTimer();
-			}
-
-			if(!this->doing && (this->writeable || this->highWater())) {
-				this->doing = true;
-				post = true;
-			}		
-		}
+	if(std::this_thread::get_id() == this->tid){
+		_send(buff,len,closedOnFlush_,post);
+	} else {
+		std::lock_guard<std::mutex> guard(this->mtx);
+		_send(buff,len,closedOnFlush_,post);	
 	}
+	
 	if(post) {
 		poller_->PostTask(shared_from_this(),this->pool_);
 	}	
