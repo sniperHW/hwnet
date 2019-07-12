@@ -140,7 +140,11 @@ void TCPSocket::registerTimer(int tt) {
 	}
 }
 
-void TCPSocket::checkTimeout() {
+void TCPSocket::checkTimeout(hwnet::util::Timer::Ptr t) {
+
+	if(t != this->timer.lock()) {
+		return;
+	}
 		
 	if(this->sendTimeout > 0 && 
 	   this->sendTimeoutCallback_ && !this->ptrSendlist->empty() &&
@@ -174,21 +178,21 @@ void TCPSocket::checkTimeout() {
 		auto sp = this->timer.lock();
 		if(sp) {
 			sp->cancel();
+			this->timer.reset();
 		}
 	}
 
 }
 
 
-void TCPSocket::onTimer(hwnet::util::Timer::Ptr _,TCPSocket::Ptr s) {
-	(void)_;
+void TCPSocket::onTimer(hwnet::util::Timer::Ptr t,TCPSocket::Ptr s) {
 	auto post = false;
 
 	s->mtx.lock();
 	if(s->sendTimeout > 0 && 
 	   s->sendTimeoutCallback_ && !s->ptrSendlist->empty() &&
 	   (std::chrono::steady_clock::now() - s->lastSendTime).count() > s->sendTimeout*1000000) {
-		s->closures.push_back(std::bind(&TCPSocket::checkTimeout, s));
+		s->closures.push_back(std::bind(&TCPSocket::checkTimeout, s,t));
 		if(!s->doing){
 			s->doing = true;
 			post = true;
@@ -198,7 +202,7 @@ void TCPSocket::onTimer(hwnet::util::Timer::Ptr _,TCPSocket::Ptr s) {
 	if(!post && s->recvTimeout > 0 && 
 	   s->recvTimeoutCallback_ && !s->recvListEmpty() &&
 	   (std::chrono::steady_clock::now() - s->lastRecvTime).count() > s->recvTimeout*1000000) {
-		s->closures.push_back(std::bind(&TCPSocket::checkTimeout, s));
+		s->closures.push_back(std::bind(&TCPSocket::checkTimeout, s,t));
 		if(!s->doing){
 			s->doing = true;
 			post = true;
@@ -229,6 +233,7 @@ TCPSocket::Ptr TCPSocket::SetSendTimeoutCallback(util::milliseconds timeout, con
 		auto sp = this->timer.lock();
 		if(sp) {
 			sp->cancel();
+			this->timer.reset();
 		}		
 	}
 
@@ -249,6 +254,7 @@ TCPSocket::Ptr TCPSocket::SetRecvTimeoutCallback(util::milliseconds timeout, con
 		auto sp = this->timer.lock();
 		if(sp) {
 			sp->cancel();
+			this->timer.reset();			
 		}		
 	}
 
@@ -822,6 +828,7 @@ void TCPSocket::Close() {
 		auto sp = this->timer.lock();
 		if(sp) {
 			sp->cancel();
+			this->timer.reset();
 		}
 
 		this->recvTimeout = 0;

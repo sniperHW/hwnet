@@ -290,9 +290,9 @@ private:
 
 	void registerTimer(int);
 
-	void checkTimeout();
+	void checkTimeout(hwnet::util::Timer::Ptr t);
 
-	static void onTimer(hwnet::util::Timer::Ptr _,TCPSocket::Ptr s);
+	static void onTimer(hwnet::util::Timer::Ptr t,TCPSocket::Ptr s);
 
 	bool highWater() {
 		return highWaterSize > 0 && bytes4Send > highWaterSize;
