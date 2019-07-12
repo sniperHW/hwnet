@@ -70,10 +70,10 @@ void onClient(TCPListener::Ptr &l,int fd,const Addr &addr) {
 		s->Close();
 	});
 	
-	sc->SetSendTimeoutCallback(5000,[](TCPSocket::Ptr &s){
+	/*sc->SetSendTimeoutCallback(5000,[](TCPSocket::Ptr &s){
 		std::cout << "send timeout" << std::endl;
 		s->Close();
-	});
+	});*/
 
 	sc->Start()->Recv(recvBuff);
 	std::cout << sc->LocalAddr().ToStr() << " <-> " << sc->RemoteAddr().ToStr() << std::endl;	

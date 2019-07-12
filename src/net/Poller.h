@@ -114,7 +114,6 @@ public:
 		return timerRoutine.addTimerOnce(timeout,callback,std::forward<TArgs>(args)...);
 	}
 
-
 private:
 
 	void processNotify();

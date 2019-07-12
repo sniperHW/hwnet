@@ -353,6 +353,7 @@ public:
     	Stop();
     }
 
+
 private:
 
 	void wait(milliseconds now);
