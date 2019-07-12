@@ -148,7 +148,7 @@ void TCPSocket::checkTimeout(hwnet::util::Timer::Ptr t) {
 		
 	if(this->sendTimeout > 0 && 
 	   this->sendTimeoutCallback_ && !this->ptrSendlist->empty() &&
-	   (std::chrono::steady_clock::now() - this->lastSendTime).count() > this->sendTimeout*1000000) {
+	   (util::milliseconds)((std::chrono::steady_clock::now() - this->lastSendTime).count()) > this->sendTimeout*1000000) {
 		SendTimeoutCallback cb = this->sendTimeoutCallback_;
 
 		this->sendTimeout = 0;
@@ -162,7 +162,7 @@ void TCPSocket::checkTimeout(hwnet::util::Timer::Ptr t) {
 
 	if(!this->closed && this->recvTimeout > 0 && 
 	   this->recvTimeoutCallback_ && !this->recvListEmpty() &&
-	   (std::chrono::steady_clock::now() - this->lastRecvTime).count() > this->recvTimeout*1000000) {
+	   (util::milliseconds)((std::chrono::steady_clock::now() - this->lastRecvTime).count()) > this->recvTimeout*1000000) {
 		RecvTimeoutCallback cb = this->recvTimeoutCallback_;
 		
 		this->recvTimeout = 0;
@@ -191,7 +191,7 @@ void TCPSocket::onTimer(hwnet::util::Timer::Ptr t,TCPSocket::Ptr s) {
 	s->mtx.lock();
 	if(s->sendTimeout > 0 && 
 	   s->sendTimeoutCallback_ && !s->ptrSendlist->empty() &&
-	   (std::chrono::steady_clock::now() - s->lastSendTime).count() > s->sendTimeout*1000000) {
+	   (util::milliseconds)((std::chrono::steady_clock::now() - s->lastSendTime).count()) > s->sendTimeout*1000000) {
 		s->closures.push_back(std::bind(&TCPSocket::checkTimeout, s,t));
 		if(!s->doing){
 			s->doing = true;
@@ -201,7 +201,7 @@ void TCPSocket::onTimer(hwnet::util::Timer::Ptr t,TCPSocket::Ptr s) {
 
 	if(!post && s->recvTimeout > 0 && 
 	   s->recvTimeoutCallback_ && !s->recvListEmpty() &&
-	   (std::chrono::steady_clock::now() - s->lastRecvTime).count() > s->recvTimeout*1000000) {
+	   (util::milliseconds)((std::chrono::steady_clock::now() - s->lastRecvTime).count()) > s->recvTimeout*1000000) {
 		s->closures.push_back(std::bind(&TCPSocket::checkTimeout, s,t));
 		if(!s->doing){
 			s->doing = true;
