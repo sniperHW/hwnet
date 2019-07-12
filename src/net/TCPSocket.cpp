@@ -138,7 +138,7 @@ void TCPSocket::onSendTimer(hwnet::util::Timer::Ptr t,TCPSocket::Ptr s) {
 	auto post = false;
 	s->mtx.lock();
 
-	if(t == s->sendTimer->lock()) {
+	if(t == s->sendTimer.lock()) {
 		s->closures.push_back(std::bind(&TCPSocket::checkSendTimeout, s,t));
 		if(!s->doing){
 			s->doing = true;
@@ -182,7 +182,7 @@ void TCPSocket::onRecvTimer(hwnet::util::Timer::Ptr t,TCPSocket::Ptr s) {
 	auto post = false;
 	s->mtx.lock();
 
-	if(t == s->recvTimer->lock()) {
+	if(t == s->recvTimer.lock()) {
 		s->closures.push_back(std::bind(&TCPSocket::checkRecvTimeout, s,t));
 		
 		if(!s->doing){
