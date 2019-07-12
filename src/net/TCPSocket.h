@@ -26,6 +26,8 @@ public:
 
 	static const bool ClosedOnFlush = true;
 
+	static int timoutResolution; //可按需求调整,更小的分辨率将带来更大的消耗(默认1000毫秒)
+
 public:
 
 	/*
@@ -218,7 +220,6 @@ public:
 	}	
 
 	/*
-	 * 最小时间为100毫秒
 	 * 以下两个超时处理在回调一次之后将会关闭，如需要再次开启必须重新注册 
 	 */
 

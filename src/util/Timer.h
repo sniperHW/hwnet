@@ -2,7 +2,8 @@
 #define _TIMER_H
 
 #include <functional>
-#include <queue>
+//#include <queue>
+//#include <map>
 #include <memory>
 #include <vector>
 #include <chrono>
@@ -43,10 +44,6 @@ public:
 
     int cancel();
 
-    /*~Timer(){
-    	std::cout << "~Timer" << std::endl;
-    }*/
-
 private:
 
 
@@ -77,6 +74,8 @@ private:
 	size_t   						mIndex;
 	std::atomic_uint                mStatus;
     std::thread::id 	            tid;
+    Ptr                             selfPtr;
+
     friend class TimerMgr;
     friend class TimerRoutine;
 };
@@ -106,7 +105,7 @@ public:
     Timer::WeakPtr addTimerOnce(milliseconds now,milliseconds timeout, F&& callback, TArgs&& ...args)
     {
         auto timer = Timer::Ptr(new Timer(now + timeout,timeout,true));
-        timer->mCallback = std::bind(std::forward<F>(callback), timer, std::forward<TArgs>(args)...);
+        timer->mCallback = std::bind(std::forward<F>(callback), timer, std::forward<TArgs>(args)...);      
         this->insertLock(timer);
         return timer;
     }
@@ -121,6 +120,7 @@ public:
 	~TimerMgr(){
 		for(size_t i = 0; i < this->elements_size;i++) {
 			this->elements[i]->mCallback = nullptr;
+			this->elements[i]->selfPtr = nullptr;
 		}
 	}
 
@@ -151,7 +151,7 @@ private:
 		return idx*2 + 1;
 	}
 
-	void change(Timer::Ptr &e) {
+	void change(Timer *e) {
 		auto idx = e->mIndex;
 		this->down(idx);
 		if(idx == e->mIndex){
@@ -214,9 +214,9 @@ private:
 		}
 	}
 
-	Timer::Ptr &top() {
+	Timer::Ptr& top() {
 		if(this->elements_size > 0) {
-			return this->elements[0];
+			return this->elements[0]->selfPtr;
 		} else {
 			return empty_element_ptr;
 		}
@@ -227,7 +227,8 @@ private:
 			auto e = this->elements[0];
 			this->swap(1,this->elements_size);
 			e->mIndex = 0;
-			e->mMgr  = nullptr;			
+			e->mMgr  = nullptr;		
+			e->selfPtr = nullptr;	
 			this->elements[this->elements_size-1] = nullptr;
 			--this->elements_size;
 			this->down(1);
@@ -250,22 +251,23 @@ private:
 				return false;
 			}
 			auto offsetIdx = getOffset(e->mIndex);
-			if(this->elements[offsetIdx] != e) {
+			if(this->elements[offsetIdx] != e.get()) {
 				return false;
 			}
-			change(e);
+			change(e.get());
 			return true;
 		} else {
 			e->mMgr = this;
 			e->mIndex = this->elements_size+1;
 			if(this->elements_size == this->elements.size()) {
-				this->elements.push_back(e);
+				this->elements.push_back(e.get());
 			} else {
 				auto offset = getNextFreeOffset();
-				this->elements[offset] = e;
+				this->elements[offset] = e.get();
 			}
 			++this->elements_size;
 			this->up(e->mIndex);
+			e->selfPtr = e;
 			return true;
 		}
 	}
@@ -278,13 +280,13 @@ private:
 			}
 
 			auto offsetIdx = getOffset(e->mIndex);
-			if(this->elements[offsetIdx] != e) {
+			if(this->elements[offsetIdx] != e.get()) {
 				return false;
 			}
 
 			auto tail = this->elements[this->elements_size-1];
 			
-			if(tail == e) {
+			if(tail == e.get()) {
 				this->elements_size--;
 			} else {
 				this->swap(e->mIndex,tail->mIndex);
@@ -295,6 +297,7 @@ private:
 			this->elements[this->elements_size] = nullptr;
 			e->mIndex = 0;
 			e->mCallback = nullptr;
+			e->selfPtr = e;
 			return true;
 		} else {
 			return false;
@@ -304,7 +307,7 @@ private:
 	int        policy;
 	std::mutex mtx;
 	size_t     elements_size;
-	std::vector<Timer::Ptr> elements;
+	std::vector<Timer*> elements;
 
 };
 

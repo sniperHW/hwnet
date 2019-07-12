@@ -11,6 +11,9 @@
 namespace hwnet {
 
 
+int TCPSocket::timoutResolution = 1000;
+
+
 class sendContextPool {
 
 public:
@@ -132,7 +135,7 @@ void TCPSocket::registerTimer(int tt) {
 		if(!this->ptrSendlist->empty() && !this->timer.lock()) {
 			auto sp = shared_from_this();
 			this->lastSendTime = std::chrono::steady_clock::now();
-			this->timer = this->poller_->addTimer(100,TCPSocket::onTimer,sp);
+			this->timer = this->poller_->addTimer(timoutResolution,TCPSocket::onTimer,sp);
 		}
 
 	} else {
@@ -140,7 +143,7 @@ void TCPSocket::registerTimer(int tt) {
 		if(!this->recvListEmpty() && !this->timer.lock()) {	
 			auto sp = shared_from_this();
 			this->lastRecvTime = std::chrono::steady_clock::now();
-			this->timer = this->poller_->addTimer(100,TCPSocket::onTimer,sp);
+			this->timer = this->poller_->addTimer(timoutResolution,TCPSocket::onTimer,sp);
 		}
 	}
 }
