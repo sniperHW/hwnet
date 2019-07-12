@@ -251,6 +251,8 @@ public:
 	 */
 
 	void Recv(const Buffer::Ptr &buff);
+
+	void _recv(const Buffer::Ptr &buff,bool &post);
 	
 	/*
 	 *  如果len == 0,发送取buff->Len()
@@ -258,7 +260,10 @@ public:
 	void Send(const Buffer::Ptr &buff,size_t len = 0,bool closedOnFlush = false);
 	
 	void Send(const char *str,size_t len,bool closedOnFlush = false);
+	
 	void Send(const std::string &str,bool closedOnFlush = false);
+
+	void _send(const Buffer::Ptr &buff,size_t len,bool closedOnFlush,bool &post);
 
 	const Addr& RemoteAddr() const;
 
@@ -375,16 +380,15 @@ private:
 	std::thread::id 	   tid;
 	std::list<std::function<void (void)>> closures;
 	
+	util::Timer::WeakPtr   timer;
+	
 	util::milliseconds     recvTimeout;
 	RecvTimeoutCallback    recvTimeoutCallback_;
 	std::chrono::steady_clock::time_point lastRecvTime;
-	util::Timer::WeakPtr   timer;
 
 	util::milliseconds     sendTimeout;
 	SendTimeoutCallback    sendTimeoutCallback_;
 	std::chrono::steady_clock::time_point lastSendTime;
-	
-	//util::Timer::WeakPtr   sendTimer;	
 
 
 };
