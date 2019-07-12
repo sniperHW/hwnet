@@ -34,5 +34,5 @@ function gobench {
     echo ""
 }
 
-gobench "benmark2" ./bin/benmark2 8888
+#gobench "benmark2" ./bin/benmark2 8888
 gobench "benmark" ./bin/benmark 8889

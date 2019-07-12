@@ -90,8 +90,8 @@ TCPSocket::TCPSocket(Poller *poller_,int fd):fd(fd),err(0),flushCallback_(nullpt
 	errorCallback_(nullptr),closeCallback_(nullptr),readable(false),readableVer(0),writeable(false),
 	writeableVer(0),closed(false),closedOnFlush(false),shutdown(false),doing(false),socketError(false),poller_(poller_),
 	bytes4Send(0),highWaterSize(0),pool_(nullptr),started(false),
-	recvTimeout(0),recvTimeoutCallback_(nullptr),lastRecvTime(std::chrono::steady_clock::now()),
-	sendTimeout(0),sendTimeoutCallback_(nullptr),lastSendTime(std::chrono::steady_clock::now()) {
+	recvTimeout(0),recvTimeoutCallback_(nullptr),//lastRecvTime(std::chrono::steady_clock::now()),
+	sendTimeout(0),sendTimeoutCallback_(nullptr)/*,lastSendTime(std::chrono::steady_clock::now())*/ {
 		slistIdx = 0;
 		ptrSendlist = &sendLists[slistIdx];
 
@@ -106,8 +106,8 @@ TCPSocket::TCPSocket(Poller *poller_,ThreadPool *pool_,int fd):fd(fd),err(0),flu
 	errorCallback_(nullptr),closeCallback_(nullptr),readable(false),readableVer(0),writeable(false),
 	writeableVer(0),closed(false),closedOnFlush(false),shutdown(false),doing(false),socketError(false),poller_(poller_),
 	bytes4Send(0),highWaterSize(0),pool_(pool_),started(false),
-	recvTimeout(0),recvTimeoutCallback_(nullptr),lastRecvTime(std::chrono::steady_clock::now()),
-	sendTimeout(0),sendTimeoutCallback_(nullptr),lastSendTime(std::chrono::steady_clock::now()) {
+	recvTimeout(0),recvTimeoutCallback_(nullptr),//lastRecvTime(std::chrono::steady_clock::now()),
+	sendTimeout(0),sendTimeoutCallback_(nullptr)/*,lastSendTime(std::chrono::steady_clock::now())*/ {
 		slistIdx = 0;
 		ptrSendlist = &sendLists[slistIdx];		
 #ifdef GATHER_RECV
@@ -121,101 +121,93 @@ TCPSocket::~TCPSocket() {
 	::close(this->fd);
 }
 
-void TCPSocket::registerTimer(int tt) {
-	if(tt == 1) {
-		//send
-		if(!this->ptrSendlist->empty() && !this->timer.lock()) {
-			auto sp = shared_from_this();
-			this->lastSendTime = std::chrono::steady_clock::now();
-			this->timer = this->poller_->addTimer(100,TCPSocket::onTimer,sp);
-		}
-
-	} else {
-		//recv
-		if(!this->recvListEmpty() && !this->timer.lock()) {	
-			auto sp = shared_from_this();
-			this->lastRecvTime = std::chrono::steady_clock::now();
-			this->timer = this->poller_->addTimer(100,TCPSocket::onTimer,sp);
-		}
-	}
-}
-
-void TCPSocket::checkTimeout() {
-		
-	if(this->sendTimeout > 0 && 
-	   this->sendTimeoutCallback_ && !this->ptrSendlist->empty() &&
-	   (std::chrono::steady_clock::now() - this->lastSendTime).count() > this->sendTimeout*1000000) {
+void TCPSocket::checkSendTimeout(hwnet::util::Timer::Ptr t) {
+	if(this->sendTimer.lock() == t) {
 		SendTimeoutCallback cb = this->sendTimeoutCallback_;
-
 		this->sendTimeout = 0;
 		this->sendTimeoutCallback_ = nullptr;
-
+		this->sendTimer.reset();
 		this->mtx.unlock();
 		auto sp = shared_from_this();
 		cb(sp);
 		this->mtx.lock();
-	}
-
-	if(!this->closed && this->recvTimeout > 0 && 
-	   this->recvTimeoutCallback_ && !this->recvListEmpty() &&
-	   (std::chrono::steady_clock::now() - this->lastRecvTime).count() > this->recvTimeout*1000000) {
-		RecvTimeoutCallback cb = this->recvTimeoutCallback_;
-		
-		this->recvTimeout = 0;
-		this->recvTimeoutCallback_ = nullptr;
-
-		this->mtx.unlock();
-		auto sp = shared_from_this();
-		cb(sp);
-		this->mtx.lock();
-	}
-
-	if(this->sendTimeout == 0 && this->recvTimeout == 0) {
-		auto sp = this->timer.lock();
-		if(sp) {
-			sp->cancel();
-		}
-	}
-
+	}	
 }
 
-
-void TCPSocket::onTimer(hwnet::util::Timer::Ptr _,TCPSocket::Ptr s) {
-	(void)_;
+void TCPSocket::onSendTimer(hwnet::util::Timer::Ptr t,TCPSocket::Ptr s) {
 	auto post = false;
-
 	s->mtx.lock();
-	if(s->sendTimeout > 0 && 
-	   s->sendTimeoutCallback_ && !s->ptrSendlist->empty() &&
-	   (std::chrono::steady_clock::now() - s->lastSendTime).count() > s->sendTimeout*1000000) {
-		s->closures.push_back(std::bind(&TCPSocket::checkTimeout, s));
-		if(!s->doing){
-			s->doing = true;
-			post = true;
-		}
-	}
 
-	if(!post && s->recvTimeout > 0 && 
-	   s->recvTimeoutCallback_ && !s->recvListEmpty() &&
-	   (std::chrono::steady_clock::now() - s->lastRecvTime).count() > s->recvTimeout*1000000) {
-		s->closures.push_back(std::bind(&TCPSocket::checkTimeout, s));
-		if(!s->doing){
-			s->doing = true;
-			post = true;
-		}
+	s->closures.push_back(std::bind(&TCPSocket::checkSendTimeout, s,t));
+	
+	if(!s->doing){
+		s->doing = true;
+		post = true;
 	}
-
 
 	s->mtx.unlock();
-
 	if(post) {
 		s->poller_->PostTask(s,s->pool_);
-	}
+	}	
+}
 
+void TCPSocket::resetSendTimer() {
+	if(!this->ptrSendlist->empty()) {
+		if(auto sp = this->sendTimer.lock()) {
+			//先将老定时器清除
+			sp->cancel();
+			this->sendTimer.reset();
+		}
+		auto sp = shared_from_this();
+		this->sendTimer = this->poller_->addTimerOnce(this->sendTimeout,TCPSocket::onSendTimer,sp);
+	}
+}
+
+void TCPSocket::checkRecvTimeout(hwnet::util::Timer::Ptr t) {
+	if(this->recvTimer.lock() == t) {
+		RecvTimeoutCallback cb = this->recvTimeoutCallback_;
+		this->recvTimeout = 0;
+		this->recvTimeoutCallback_ = nullptr;
+		this->recvTimer.reset();
+		this->mtx.unlock();
+		auto sp = shared_from_this();
+		cb(sp);
+		this->mtx.lock();
+	}	
 }
 
 
+void TCPSocket::onRecvTimer(hwnet::util::Timer::Ptr t,TCPSocket::Ptr s) {
+	auto post = false;
+	s->mtx.lock();
+
+	s->closures.push_back(std::bind(&TCPSocket::checkRecvTimeout, s,t));
+	
+	if(!s->doing){
+		s->doing = true;
+		post = true;
+	}
+
+	s->mtx.unlock();
+	if(post) {
+		s->poller_->PostTask(s,s->pool_);
+	}	
+}
+
+void TCPSocket::resetRecvTimer() {
+	if(!this->recvListEmpty()) {
+		if(auto sp = this->recvTimer.lock()) {
+			//先将老定时器清除
+			sp->cancel();
+			this->recvTimer.reset();
+		}
+		auto sp = shared_from_this();
+		this->recvTimer = this->poller_->addTimerOnce(this->recvTimeout,TCPSocket::onRecvTimer,sp);
+	}
+}
+
 TCPSocket::Ptr TCPSocket::SetSendTimeoutCallback(util::milliseconds timeout, const SendTimeoutCallback &callback) {
+
 	std::lock_guard<std::mutex> guard(this->mtx);
 	
 	this->sendTimeout = 0;
@@ -223,33 +215,36 @@ TCPSocket::Ptr TCPSocket::SetSendTimeoutCallback(util::milliseconds timeout, con
 
 	if(timeout > 0 && callback) {
 		this->sendTimeout = timeout;
-		this->sendTimeoutCallback_ = callback;			
-		this->registerTimer(1);
-	} else if(this->recvTimeout == 0) {
-		auto sp = this->timer.lock();
+		this->sendTimeoutCallback_ = callback;
+		resetSendTimer();
+	} else {
+		auto sp = this->sendTimer.lock();
 		if(sp) {
 			sp->cancel();
-		}		
+		}
+		this->sendTimer.reset();		
 	}
 
 	return shared_from_this();
 }
 
 TCPSocket::Ptr TCPSocket::SetRecvTimeoutCallback(util::milliseconds timeout, const RecvTimeoutCallback &callback) {
-	std::lock_guard<std::mutex> guard(this->mtx);
 
+	std::lock_guard<std::mutex> guard(this->mtx);
+	
 	this->recvTimeout = 0;
 	this->recvTimeoutCallback_ = nullptr;
 
 	if(timeout > 0 && callback) {
 		this->recvTimeout = timeout;
-		this->recvTimeoutCallback_ = callback;	
-		this->registerTimer(2);
-	} else if(this->sendTimeout == 0) {
-		auto sp = this->timer.lock();
+		this->recvTimeoutCallback_ = callback;
+		resetRecvTimer();
+	} else {
+		auto sp = this->recvTimer.lock();
 		if(sp) {
 			sp->cancel();
-		}		
+		}
+		this->recvTimer.reset();		
 	}
 
 	return shared_from_this();
@@ -320,14 +315,18 @@ void TCPSocket::Recv(const Buffer::Ptr &buff) {
 			if(this->recvCallback_ == nullptr) {
 				return;
 			}
+
+			auto empty = this->recvListEmpty();
+
+
 #ifdef GATHER_RECV
 			ptrRecvlist->push_back(buff);
 #else
 			recvList.push_back(buff);
 #endif
 
-			if(this->recvTimeout > 0) {
-				this->registerTimer(2);
+			if(this->recvTimeout > 0 && empty) {
+				this->resetRecvTimer();
 			}
 
 			if(!this->doing && this->readable) {
@@ -345,14 +344,16 @@ void TCPSocket::Recv(const Buffer::Ptr &buff) {
 				return;
 			}
 
+			auto empty = this->recvListEmpty();
+
 #ifdef GATHER_RECV
 			ptrRecvlist->push_back(buff);
 #else
 			recvList.push_back(buff);
 #endif
 
-			if(this->recvTimeout > 0) {
-				this->registerTimer(2);
+			if(this->recvTimeout > 0 && empty) {
+				this->resetRecvTimer();
 			}
 
 			if(!this->doing && this->readable) {
@@ -396,11 +397,13 @@ void TCPSocket::Send(const Buffer::Ptr &buff,size_t len,bool closedOnFlush_) {
 
 			this->closedOnFlush = closedOnFlush_;
 
+			auto empty = this->ptrSendlist->empty();
+
 			this->ptrSendlist->push_back(getSendContext(this->fd,buff,len));
 			this->bytes4Send += len;
 
-			if(this->sendTimeout > 0) {
-				this->registerTimer(1);
+			if(this->sendTimeout > 0 && empty) {
+				this->resetSendTimer();
 			}
 
 			if(!this->doing && (this->writeable || this->highWater())) {
@@ -415,11 +418,13 @@ void TCPSocket::Send(const Buffer::Ptr &buff,size_t len,bool closedOnFlush_) {
 
 			this->closedOnFlush = closedOnFlush_;
 
+			auto empty = this->ptrSendlist->empty();
+
 			this->ptrSendlist->push_back(getSendContext(this->fd,buff,len));
 			this->bytes4Send += len;
 
-			if(this->sendTimeout > 0) {
-				this->registerTimer(1);
+			if(this->sendTimeout > 0 && empty) {
+				this->resetSendTimer();
 			}
 
 			if(!this->doing && (this->writeable || this->highWater())) {
@@ -519,11 +524,6 @@ void TCPSocket::sendInWorker() {
 			closedOnFlush_ = this->closedOnFlush;
 
 			if(n >= 0) {
-
-				if(this->sendTimeout > 0) {
-					this->lastSendTime = std::chrono::steady_clock::now();
-				}
-
 				if(n > 0 && (n < totalBytes || cur != nullptr)) {
 					//部分发送
 					size_t nn = (size_t)n;
@@ -556,6 +556,18 @@ void TCPSocket::sendInWorker() {
 					this->writeable = false;
 				}
 
+
+				if(this->sendTimeout > 0) {
+					if(this->ptrSendlist->empty()) {
+						if(auto sp = this->sendTimer.lock()){
+							sp->cancel();
+							this->sendTimer.reset();
+						}
+					} else {
+						this->resetSendTimer();
+					}
+				}
+
 			} else {
 				if(n < 0 && errno == EAGAIN) {
 					this->ptrSendlist->add_front(localSendlist);
@@ -573,7 +585,6 @@ void TCPSocket::sendInWorker() {
 			}
 		}
 	}
-
 
 	this->mtx.unlock();
 
@@ -674,10 +685,6 @@ void TCPSocket::recvInWorker() {
 
 					this->mtx.lock();
 
-					if(this->recvTimeout > 0) {
-						this->lastRecvTime = std::chrono::steady_clock::now();
-					}
-
 					for( ; !localRecvlist->empty(); ) {
 						auto back = localRecvlist->back();
 						this->ptrRecvlist->push_front(back);
@@ -689,6 +696,18 @@ void TCPSocket::recvInWorker() {
 							this->readable = false;
 						}					
 					}
+
+					if(this->recvTimeout > 0) {
+						if(this->recvListEmpty()) {
+							if(auto sp = this->recvTimer.lock()){
+								sp->cancel();
+								this->recvTimer.reset();
+							}
+						} else {
+							this->resetRecvTimer();
+						}
+					}
+
 
 					this->mtx.unlock();
 
@@ -756,17 +775,25 @@ void TCPSocket::recvInWorker() {
 
 				this->mtx.lock();
 
-				if(this->recvTimeout > 0) {
-					this->lastRecvTime = std::chrono::steady_clock::now();
-				}
-
 				if(size_t(n) < front->Len()) {
 					if(localVer == this->readableVer) {
 						this->readable = false;
 					}
 				}
 
+				if(this->recvTimeout > 0) {
+					if(this->recvListEmpty()) {
+						if(auto sp = this->recvTimer.lock()){
+							sp->cancel();
+							this->recvTimer.reset();
+						}
+					} else {
+						this->resetRecvTimer();
+					}
+				}
+
 				this->mtx.unlock();
+
 			} else {
 				this->mtx.lock();
 				if(n < 0 && errno == EAGAIN) {					
@@ -819,17 +846,15 @@ void TCPSocket::Close() {
 			return;
 		}
 
-		auto sp = this->timer.lock();
-		if(sp) {
+		if(auto sp = this->sendTimer.lock()) {
 			sp->cancel();
+			this->sendTimer.reset();
 		}
 
-		this->recvTimeout = 0;
-		this->recvTimeoutCallback_ = nullptr;
-
-		this->sendTimeout = 0;
-		this->sendTimeoutCallback_ = nullptr;
-
+		if(auto sp = this->recvTimer.lock()) {
+			sp->cancel();
+			this->recvTimer.reset();
+		}		
 
 		this->closed.store(true);
 		::shutdown(this->fd,SHUT_RDWR);

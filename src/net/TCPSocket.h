@@ -288,11 +288,24 @@ public:
 
 private:
 
-	void registerTimer(int);
+	void checkSendTimeout(hwnet::util::Timer::Ptr t);
+
+	void resetSendTimer();
+
+	void checkRecvTimeout(hwnet::util::Timer::Ptr t);
+
+	void resetRecvTimer();
+
+	static void onSendTimer(hwnet::util::Timer::Ptr t,TCPSocket::Ptr s);
+
+	static void onRecvTimer(hwnet::util::Timer::Ptr t,TCPSocket::Ptr s);
+
+	/*void registerTimer(int);
 
 	void checkTimeout();
 
 	static void onTimer(hwnet::util::Timer::Ptr _,TCPSocket::Ptr s);
+*/
 
 	bool highWater() {
 		return highWaterSize > 0 && bytes4Send > highWaterSize;
@@ -377,14 +390,13 @@ private:
 	
 	util::milliseconds     recvTimeout;
 	RecvTimeoutCallback    recvTimeoutCallback_;
-	std::chrono::steady_clock::time_point lastRecvTime;
-	util::Timer::WeakPtr   timer;
+	//std::chrono::steady_clock::time_point lastRecvTime;
+	util::Timer::WeakPtr   recvTimer;
 
 	util::milliseconds     sendTimeout;
 	SendTimeoutCallback    sendTimeoutCallback_;
-	std::chrono::steady_clock::time_point lastSendTime;
-	
-	//util::Timer::WeakPtr   sendTimer;	
+	//std::chrono::steady_clock::time_point lastSendTime;
+	util::Timer::WeakPtr   sendTimer;	
 
 
 };
