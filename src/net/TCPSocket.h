@@ -251,8 +251,6 @@ public:
 	 */
 
 	void Recv(const Buffer::Ptr &buff);
-
-	void _recv(const Buffer::Ptr &buff,bool &post);
 	
 	/*
 	 *  如果len == 0,发送取buff->Len()
@@ -262,8 +260,6 @@ public:
 	void Send(const char *str,size_t len,bool closedOnFlush = false);
 	
 	void Send(const std::string &str,bool closedOnFlush = false);
-
-	void _send(const Buffer::Ptr &buff,size_t len,bool closedOnFlush,bool &post);
 
 	const Addr& RemoteAddr() const;
 
@@ -292,6 +288,10 @@ public:
 	~TCPSocket();
 
 private:
+
+	void _recv(const Buffer::Ptr &buff,bool &post);
+
+	void _send(const Buffer::Ptr &buff,size_t len,bool closedOnFlush,bool &post);	
 
 	void registerTimer(int);
 
