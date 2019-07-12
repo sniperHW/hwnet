@@ -71,7 +71,6 @@ void TimerMgr::Schedule(const milliseconds &now) {
 	        	continue; 		
         	}
         }
-
         tmp->mCallback = nullptr;
     }
     this->mtx.unlock();
