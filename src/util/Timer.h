@@ -43,6 +43,10 @@ public:
 
     int cancel();
 
+    /*~Timer(){
+    	std::cout << "~Timer" << std::endl;
+    }*/
+
 private:
 
 
@@ -112,6 +116,12 @@ public:
 	bool Empty() {
 		std::lock_guard<std::mutex> guard(this->mtx);
 		return this->elements_size == 0;
+	}
+
+	~TimerMgr(){
+		for(size_t i = 0; i < this->elements_size;i++) {
+			this->elements[i]->mCallback = nullptr;
+		}
 	}
 
 private:
@@ -284,6 +294,7 @@ private:
 
 			this->elements[this->elements_size] = nullptr;
 			e->mIndex = 0;
+			e->mCallback = nullptr;
 			return true;
 		} else {
 			return false;
@@ -341,7 +352,6 @@ public:
     ~TimerRoutine() {
     	Stop();
     }
-
 
 private:
 

@@ -17,7 +17,7 @@ int Timer::cancel() {
 	uint setv1 = Timer::canceled;
 	uint setv2 = Timer::incallback | Timer::canceled;
 	if(mStatus.compare_exchange_strong(expected1,setv1) || mStatus.compare_exchange_strong(expected2,setv2)) {
-		if(mStatus.load() | Timer::incallback) {
+		if(mStatus.load() & Timer::incallback) {
 			if(this->tid == std::this_thread::get_id()) {
 				//在回调函数调用栈内,定时器不会再被执行
 				return Timer::doing_callback_in_current_thread;
@@ -67,9 +67,12 @@ void TimerMgr::Schedule(const milliseconds &now) {
 	        		tmp->mExpiredTime += tmp->mTimeout;
 	        	}
 	        	this->insert(tmp);
-	        	tmp->tid = std::thread::id();        		
+	        	tmp->tid = std::thread::id();       
+	        	continue; 		
         	}
         }
+
+        tmp->mCallback = nullptr;
     }
     this->mtx.unlock();
 }
