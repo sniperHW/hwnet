@@ -256,11 +256,17 @@ public:
 	/*
 	 *  如果len == 0,发送取buff->Len()
 	 */
-	void Send(const Buffer::Ptr &buff,size_t len = 0,bool closedOnFlush = false);
+	void Send(const Buffer::Ptr &buff,size_t len = 0);
 	
-	void Send(const char *str,size_t len,bool closedOnFlush = false);
+	void Send(const char *str,size_t len);
 	
-	void Send(const std::string &str,bool closedOnFlush = false);
+	void Send(const std::string &str);
+
+	void SendAndClose(const Buffer::Ptr &buff,size_t len = 0);
+
+	void SendAndClose(const char *str,size_t len);
+
+	void SendAndClose(const std::string &str);
 
 	const Addr& RemoteAddr() const;
 

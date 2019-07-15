@@ -79,8 +79,13 @@ void HttpSession::Close() {
 	this->s->Close();
 }
 
-void HttpSession::Send(const std::string &str,bool closedOnFlush){
-	this->s->Send(str,closedOnFlush);
+void HttpSession::Send(const std::string &str){
+	this->s->Send(str);
+}
+
+
+void HttpSession::SendAndClose(const std::string &str) {
+	this->s->SendAndClose(str);
 }
 
 void HttpSession::onData(const TCPSocket::Ptr &ss,const Buffer::Ptr &buff,size_t n) {

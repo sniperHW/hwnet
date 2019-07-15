@@ -361,14 +361,6 @@ void TCPSocket::Recv(const Buffer::Ptr &buff) {
 	}
 }
 
-void TCPSocket::Send(const char *str,size_t len,bool closedOnFlush_) {
-	this->Send(Buffer::New(str,len),0,closedOnFlush_);
-}
-
-void TCPSocket::Send(const std::string &str,bool closedOnFlush_) {
-	this->Send(Buffer::New(str),0,closedOnFlush_);
-}
-
 void TCPSocket::_send(const Buffer::Ptr &buff,size_t len,bool closedOnFlush_,bool &post) {
 	if(this->closed || this->shutdown || this->closedOnFlush) {
 		return;
@@ -389,7 +381,7 @@ void TCPSocket::_send(const Buffer::Ptr &buff,size_t len,bool closedOnFlush_,boo
 	}	
 }
 
-void TCPSocket::Send(const Buffer::Ptr &buff,size_t len,bool closedOnFlush_) {
+void TCPSocket::SendAndClose(const Buffer::Ptr &buff,size_t len) {
 	if(buff == nullptr) {
 		return;
 	}
@@ -405,10 +397,54 @@ void TCPSocket::Send(const Buffer::Ptr &buff,size_t len,bool closedOnFlush_) {
 	auto post = false;
 	
 	if(std::this_thread::get_id() == this->tid){
-		_send(buff,len,closedOnFlush_,post);
+		_send(buff,len,true,post);
 	} else {
 		std::lock_guard<std::mutex> guard(this->mtx);
-		_send(buff,len,closedOnFlush_,post);		
+		_send(buff,len,true,post);		
+	}
+	
+	if(post) {
+		poller_->PostTask(shared_from_this(),this->pool_);
+	}
+}
+
+void TCPSocket::SendAndClose(const char *str,size_t len) {
+	this->SendAndClose(Buffer::New(str,len),0);
+}
+
+void TCPSocket::SendAndClose(const std::string &str) {
+	this->SendAndClose(Buffer::New(str),0);
+}
+
+void TCPSocket::Send(const char *str,size_t len) {
+	this->Send(Buffer::New(str,len),0);
+}
+
+void TCPSocket::Send(const std::string &str) {
+	this->Send(Buffer::New(str),0);
+}
+
+
+void TCPSocket::Send(const Buffer::Ptr &buff,size_t len) {
+	if(buff == nullptr) {
+		return;
+	}
+
+	if(len == 0) {
+		len = buff->Len();
+	}
+
+	if(len == 0) {
+		return;
+	}
+
+	auto post = false;
+	
+	if(std::this_thread::get_id() == this->tid){
+		_send(buff,len,false,post);
+	} else {
+		std::lock_guard<std::mutex> guard(this->mtx);
+		_send(buff,len,false,post);		
 	}
 	
 	if(post) {

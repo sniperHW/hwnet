@@ -268,7 +268,9 @@ private:
 
 	void Close();
 		
-	void Send(const std::string &str,bool closedOnFlush = false);
+	void Send(const std::string &str);
+
+	void SendAndClose(const std::string &str);
 
 	HttpSession::Ptr my_shared_from_this() {
 		return shared_from_this();
