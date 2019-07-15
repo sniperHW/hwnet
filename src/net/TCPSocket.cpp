@@ -121,6 +121,9 @@ TCPSocket::TCPSocket(Poller *poller_,ThreadPool *pool_,int fd):fd(fd),err(0),flu
 
 
 TCPSocket::~TCPSocket() {
+	if(auto sp = this->timer.lock()) {
+		sp->cancel();
+	}
 	::close(this->fd);
 }
 
@@ -154,7 +157,7 @@ void TCPSocket::checkTimeout(hwnet::util::Timer::Ptr t) {
 		return;
 	}
 		
-	if(this->sendTimeout > 0 && 
+	if(!this->closed && this->sendTimeout > 0 && 
 	   this->sendTimeoutCallback_ && !this->ptrSendlist->empty() &&
 	   (util::milliseconds)((std::chrono::steady_clock::now() - this->lastSendTime).count()) > this->sendTimeout*1000000) {
 		SendTimeoutCallback cb = this->sendTimeoutCallback_;
@@ -225,19 +228,20 @@ void TCPSocket::onTimer(const hwnet::util::Timer::Ptr &t,TCPSocket::Ptr s) {
 
 TCPSocket::Ptr TCPSocket::SetSendTimeoutCallback(util::milliseconds timeout, const SendTimeoutCallback &callback) {
 	std::lock_guard<std::mutex> guard(this->mtx);
-	
-	this->sendTimeout = 0;
-	this->sendTimeoutCallback_ = nullptr;
+	if(!this->closed) {	
+		this->sendTimeout = 0;
+		this->sendTimeoutCallback_ = nullptr;
 
-	if(timeout > 0 && callback) {
-		this->sendTimeout = timeout;
-		this->sendTimeoutCallback_ = callback;			
-		this->registerTimer(timerSend);
-	} else if(this->recvTimeout == 0) {
-		if(auto sp = this->timer.lock()) {
-			sp->cancel();
-			this->timer.reset();
-		}		
+		if(timeout > 0 && callback) {
+			this->sendTimeout = timeout;
+			this->sendTimeoutCallback_ = callback;			
+			this->registerTimer(timerSend);
+		} else if(this->recvTimeout == 0) {
+			if(auto sp = this->timer.lock()) {
+				sp->cancel();
+				this->timer.reset();
+			}		
+		}
 	}
 
 	return shared_from_this();
@@ -245,19 +249,20 @@ TCPSocket::Ptr TCPSocket::SetSendTimeoutCallback(util::milliseconds timeout, con
 
 TCPSocket::Ptr TCPSocket::SetRecvTimeoutCallback(util::milliseconds timeout, const RecvTimeoutCallback &callback) {
 	std::lock_guard<std::mutex> guard(this->mtx);
+	if(!this->closed) {
+		this->recvTimeout = 0;
+		this->recvTimeoutCallback_ = nullptr;
 
-	this->recvTimeout = 0;
-	this->recvTimeoutCallback_ = nullptr;
-
-	if(timeout > 0 && callback) {
-		this->recvTimeout = timeout;
-		this->recvTimeoutCallback_ = callback;	
-		this->registerTimer(timerRecv);
-	} else if(this->sendTimeout == 0) {
-		if(auto sp = this->timer.lock()) {
-			sp->cancel();
-			this->timer.reset();			
-		}		
+		if(timeout > 0 && callback) {
+			this->recvTimeout = timeout;
+			this->recvTimeoutCallback_ = callback;	
+			this->registerTimer(timerRecv);
+		} else if(this->sendTimeout == 0) {
+			if(auto sp = this->timer.lock()) {
+				sp->cancel();
+				this->timer.reset();			
+			}		
+		}
 	}
 
 	return shared_from_this();
@@ -794,8 +799,7 @@ void TCPSocket::Close() {
 			return;
 		}
 
-		auto sp = this->timer.lock();
-		if(sp) {
+		if(auto sp = this->timer.lock()) {
 			sp->cancel();
 			this->timer.reset();
 		}

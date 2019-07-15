@@ -9,7 +9,9 @@
 namespace hwnet {
 
 TCPConnector::~TCPConnector() {
-
+	if(auto sp = this->connectTimer.lock()) {
+		sp->cancel();
+	}
 }
 
 void TCPConnector::connectTimeout(const util::Timer::Ptr &t,TCPConnector::Ptr self) {
