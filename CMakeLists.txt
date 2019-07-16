@@ -94,11 +94,16 @@ target_link_libraries(httpclient hwnet pthread)
 add_executable(testtimer test/testtimer.cpp)
 target_link_libraries(testtimer hwnet pthread)
 
+
+if(LIB_OPENSSL)
+
 add_executable(sslserver test/sslserver.cpp)
 target_link_libraries(sslserver hwnet pthread)
 
 add_executable(sslclient test/sslclient.cpp)
 target_link_libraries(sslclient hwnet pthread)
+
+endif()
 
 option(BUILD_DNS "Build dns" OFF)
 
