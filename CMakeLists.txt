@@ -7,7 +7,9 @@ find_library(LIB_OPENSSL NAMES crypto ssl)
 if(LIB_OPENSSL)
   message("found openssl")
   add_definitions(-DUSE_SSL)
-  SET( CMAKE_EXE_LINKER_FLAGS  "${CMAKE_SHARED_LINKER_FLAGS} -lssl -lcrypto")
+  #SET( CMAKE_EXE_LINKER_FLAGS  "${CMAKE_SHARED_LINKER_FLAGS} -lssl -lcrypto")
+  SET(LIBSSL "ssl")
+  SET(LIBCRYPTO "crypto")
 elseif()
   message("not found openssl")
 endif()
@@ -75,34 +77,34 @@ add_library(hwnet STATIC ${src_list})
 find_package(Threads REQUIRED)
 
 add_executable(benmark test/benmark.cpp)
-target_link_libraries(benmark hwnet pthread)
+target_link_libraries(benmark hwnet pthread ${LIBSSL} ${LIBCRYPTO})
 
 add_executable(benmark2 test/benmark2.cpp)
-target_link_libraries(benmark2 hwnet pthread)
+target_link_libraries(benmark2 hwnet pthread ${LIBSSL} ${LIBCRYPTO})
 
 add_executable(benmark3 test/benmark3.cpp)
-target_link_libraries(benmark3 hwnet pthread)
+target_link_libraries(benmark3 hwnet pthread ${LIBSSL} ${LIBCRYPTO})
 
 add_executable(broadcast test/broadcast.cpp)
-target_link_libraries(broadcast pthread hwnet)
+target_link_libraries(broadcast hwnet pthread ${LIBSSL} ${LIBCRYPTO})
 
 add_executable(httpserver test/httpserver.cpp)
-target_link_libraries(httpserver hwnet pthread)
+target_link_libraries(httpserver hwnet pthread ${LIBSSL} ${LIBCRYPTO})
 
 add_executable(httpclient test/httpclient.cpp)
-target_link_libraries(httpclient hwnet pthread)
+target_link_libraries(httpclient hwnet pthread ${LIBSSL} ${LIBCRYPTO})
 
 add_executable(testtimer test/testtimer.cpp)
-target_link_libraries(testtimer hwnet pthread)
+target_link_libraries(testtimer hwnet pthread ${LIBSSL} ${LIBCRYPTO})
 
 
 if(LIB_OPENSSL)
 
 add_executable(sslserver test/sslserver.cpp)
-target_link_libraries(sslserver hwnet pthread)
+target_link_libraries(sslserver hwnet pthread ${LIBSSL} ${LIBCRYPTO})
 
 add_executable(sslclient test/sslclient.cpp)
-target_link_libraries(sslclient hwnet pthread)
+target_link_libraries(sslclient hwnet pthread ${LIBSSL} ${LIBCRYPTO})
 
 endif()
 
@@ -110,11 +112,11 @@ option(BUILD_DNS "Build dns" OFF)
 
 if(BUILD_DNS)
   add_executable(dns test/dns/Resolver.cpp test/dns/dns.cpp)
-  target_link_libraries(dns hwnet pthread cares)
+  target_link_libraries(dns hwnet pthread cares ${LIBSSL} ${LIBCRYPTO})
 endif(BUILD_DNS)
 
 if(COMPILER_SUPPORTS_CXX17)
   add_executable(broadcast2 test/broadcast2.cpp)
-  target_link_libraries(broadcast2 hwnet pthread)
+  target_link_libraries(broadcast2 hwnet pthread ${LIBSSL} ${LIBCRYPTO})
 endif()
 
