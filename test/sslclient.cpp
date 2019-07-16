@@ -6,7 +6,7 @@
 #include 	"net/Poller.h"
 #include 	"net/TCPSocket.h"
 #include 	"net/Address.h"
-#include    "net/SSLConnector.h"
+#include    "net/SSLHandshake.h"
 #include    "net/TCPConnector.h"
 #include 	<time.h>
 #include 	<unistd.h>
@@ -43,7 +43,7 @@ void onError(const TCPSocket::Ptr &ss,int err) {
 
 void onConnect(int fd) {
 	std::cout << "onConnect" << std::endl;
-	SSLConnector::New(&poller_,fd,ctx,[](int fd,SSL *ssl){
+	SSLHandshake::Connect(&poller_,fd,ctx,[](int fd,SSL *ssl){
 		std::cout << "ssl connect ok" << std::endl;
 		std::string msg = std::string(4096,'a');
 		auto buff = Buffer::New(msg);

@@ -1,11 +1,12 @@
-#include "SSLAcceptor.h"
+#include "SSLHandshake.h"
+#include "SocketHelper.h"
 #include <unistd.h>
 #include <fcntl.h>
 #include <stdio.h>
 
 namespace hwnet {
 
-static int ssl_again(int ssl_error) {
+static inline int ssl_again(int ssl_error) {
 	if(ssl_error == SSL_ERROR_WANT_WRITE || ssl_error == SSL_ERROR_WANT_READ) {
 		return 1;
 	}
@@ -14,7 +15,7 @@ static int ssl_again(int ssl_error) {
 	}
 }
 
-void SSLAcceptor::OnActive(int event) {
+void SSLHandshake::OnActive(int event) {
 	
 	auto post = false;
 
@@ -47,7 +48,7 @@ void SSLAcceptor::OnActive(int event) {
 }
 
 
-void SSLAcceptor::Do() {
+void SSLHandshake::Do() {
 
 	for(;;){
 		this->mtx.lock();
@@ -60,9 +61,8 @@ void SSLAcceptor::Do() {
 		} else {
 			auto localVer = this->ver;
 			this->mtx.unlock();
-			auto ret = SSL_accept(this->ssl);
+			auto ret = this->handshake(this->ssl);
 			this->mtx.lock();
-
 			if(ret > 0) {
 				auto ssl = this->ssl;
 				this->ssl = nullptr;

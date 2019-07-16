@@ -7,7 +7,7 @@
 #include 	"net/TCPSocket.h"
 #include 	"net/Address.h"
 #include    "net/TCPListener.h"
-#include    "net/SSLAcceptor.h"
+#include    "net/SSLHandshake.h"
 #include 	<time.h>
 #include 	<unistd.h>
 #include    <signal.h>
@@ -51,7 +51,7 @@ void onError(const TCPSocket::Ptr &ss,int err) {
 
 void onClient(const TCPListener::Ptr &l,int fd,const Addr &addr) {
 	std::cout << "on client:" << fd << std::endl;
-	SSLAcceptor::New(&poller_,fd,ctx,[](int fd,SSL *ssl){
+	SSLHandshake::Accept(&poller_,fd,ctx,[](int fd,SSL *ssl){
 		std::cout << "ssl accept ok" << std::endl;
 
 

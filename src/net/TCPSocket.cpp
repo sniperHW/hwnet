@@ -15,7 +15,7 @@ int TCPSocket::timoutResolution = 1000;
 
 #ifdef USE_SSL
 
-static int ssl_again(int ssl_error) {
+static int inline ssl_again(int ssl_error) {
 	if(ssl_error == SSL_ERROR_WANT_WRITE || ssl_error == SSL_ERROR_WANT_READ) {
 		return 1;
 	}

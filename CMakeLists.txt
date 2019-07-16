@@ -53,8 +53,7 @@ set(src_list
 if(LIB_OPENSSL)
   set(src_list 
     ${src_list}
-    ${PROJECT_SOURCE_DIR}/src/net/SSLAcceptor.cpp
-    ${PROJECT_SOURCE_DIR}/src/net/SSLConnector.cpp
+    ${PROJECT_SOURCE_DIR}/src/net/SSLHandshake.cpp
   )
 endif()
 
