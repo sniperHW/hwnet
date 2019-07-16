@@ -5,6 +5,7 @@ project(hwnet)
 
 find_library(LIB_OPENSSL NAMES crypto ssl)
 if(LIB_OPENSSL)
+  message("found openssl")
   add_definitions(-DUSE_SSL)
   SET( CMAKE_EXE_LINKER_FLAGS  "${CMAKE_SHARED_LINKER_FLAGS} -lssl -lcrypto")
 elseif()

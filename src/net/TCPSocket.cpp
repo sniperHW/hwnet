@@ -599,7 +599,7 @@ void TCPSocket::sendInWorkerSSL() {
 						this->lastSendTime = std::chrono::steady_clock::now();
 					}
 
-					if(n >= totalBytes) {
+					if((size_t)n >= totalBytes) {
 						localSendlist->pop_front();
 					} else {
 						cur->ptr += n;
@@ -618,7 +618,7 @@ void TCPSocket::sendInWorkerSSL() {
 						}
 					}
 
-					if(n < totalBytes && this->writeableVer == localVer) {
+					if((size_t)n < totalBytes && this->writeableVer == localVer) {
 						this->writeable = false;
 					}
 
