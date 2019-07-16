@@ -22,7 +22,6 @@ using namespace hwnet;
 
 std::atomic<std::int64_t>  bytes(0);
 std::atomic_int  count(0);
-std::atomic_bool serverStarted(false);
 std::atomic_int  clientcount(0);
 
 Poller poller_;
@@ -33,12 +32,10 @@ void onDataServer(const TCPSocket::Ptr &ss,const Buffer::Ptr &buff,size_t n) {
 	bytes += n;
 	count++;
 	ss->Send(buff,n);	
-	//ss->Recv(Buffer::New(packetSize,packetSize));
 }
 
 void onDataClient(const TCPSocket::Ptr &ss,const Buffer::Ptr &buff,size_t n) {
 	ss->Send(buff,n);	
-	//ss->Recv(Buffer::New(packetSize,packetSize));
 }
 
 
@@ -89,7 +86,6 @@ void server() {
 	});
 
 	TCPListener::New(&poller_,Addr::MakeIP4Addr(ip,port))->Start(onClient,onAcceptError);
-	serverStarted.store(true);
 }
 
 void onConnect(int fd) {
@@ -151,13 +147,10 @@ int main(int argc,char **argv) {
 	}
 
 	if(mode == std::string("both")) {
-		auto s = std::thread(server);
-		s.detach();
-		for( ; !serverStarted.load() ;);
+		server();
 		client(count);
 	} else if(mode == std::string("server")) {
-		auto s = std::thread(server);
-		s.detach();
+		server();
 	} else if(mode == std::string("client")) {
 		client(count);
 	} else {

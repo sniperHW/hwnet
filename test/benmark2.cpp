@@ -22,7 +22,6 @@ using namespace hwnet;
 
 std::atomic<std::int64_t>  bytes(0);
 std::atomic_int  count(0);
-std::atomic_bool serverStarted(false);
 std::atomic_int  clientcount(0);
 
 Poller poller_;
@@ -32,7 +31,6 @@ std::vector<ThreadPool*> pools;
 int packetSize = 4096;
 
 void onDataServer(const TCPSocket::Ptr &ss,const Buffer::Ptr &buff,size_t n) {
-	//printf("ondata %d\n",n);
 	bytes += n;
 	count++;
 	ss->Send(buff,n);	
@@ -42,7 +40,6 @@ void onDataClient(const TCPSocket::Ptr &ss,const Buffer::Ptr &buff,size_t n) {
 	bytes += n;
 	count++;
 	ss->Send(buff,n);	
-	//ss->Recv(Buffer::New(packetSize,packetSize));
 }
 
 void onClose(const TCPSocket::Ptr &ss) {
@@ -84,7 +81,6 @@ void server() {
 		count.store(0);	
 	});
 	TCPListener::New(&poller_,Addr::MakeIP4Addr(ip,port))->Start(onClient,onAcceptError);
-	serverStarted.store(true);
 }
 
 void onConnect(int fd) {
@@ -141,7 +137,7 @@ int main(int argc,char **argv) {
 	printf("threadCount:%d\n",threadCount);
 	
 	ThreadPool pool;
-	pool.Init(2);//1 for timer,1 for listener,connector
+	pool.Init(1);
 
 	if(!poller_.Init(&pool)) {
 		printf("init failed\n");
@@ -158,13 +154,10 @@ int main(int argc,char **argv) {
 
 
 	if(mode == std::string("both")) {
-		auto s = std::thread(server);
-		s.detach();
-		for( ; !serverStarted.load() ;);
+		server();
 		client(count);
 	} else if(mode == std::string("server")) {
-		auto s = std::thread(server);
-		s.detach();
+		server();
 	} else if(mode == std::string("client")) {
 		client(count);
 	} else {

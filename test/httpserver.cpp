@@ -67,11 +67,6 @@ void onAcceptError(const TCPListener::Ptr &l,int err) {
 	printf("onAcceptError %s\n",strerror(err));
 }
 
-void server() {
-	TCPListener::New(&poller_,Addr::MakeIP4Addr(ip,port))->Start(onClient,onAcceptError);
-}
-
-
 int main(int argc,char **argv) {
 	signal(SIGPIPE,SIG_IGN);
 	auto threadCount = std::thread::hardware_concurrency();
@@ -93,10 +88,8 @@ int main(int argc,char **argv) {
 		return 0;
 	}
 
-	auto s = std::thread(server);
-	s.detach();
+	TCPListener::New(&poller_,Addr::MakeIP4Addr(ip,port))->Start(onClient,onAcceptError);
 	
-
 	poller_.Run();
 
 	return 0;
