@@ -14,6 +14,13 @@
 #include "net/any.h"
 #include "util/Timer.h"
 
+#ifdef USE_SSL
+#include <openssl/ssl.h>
+#include <openssl/err.h>
+#undef GATHER_RECV
+#endif
+
+
 namespace hwnet {
 
 class TCPSocket : public Task, public Channel ,public std::enable_shared_from_this<TCPSocket> {
@@ -187,6 +194,27 @@ public:
 		return Ptr(new TCPSocket(poller_,pool_,fd));
 	}
 
+#ifdef USE_SSL
+
+	static TCPSocket::Ptr New(Poller *poller_,int fd,SSL *ssl){
+		SetNoBlock(fd,true);
+		SetCloseOnExec(fd);
+		auto ptr = Ptr(new TCPSocket(poller_,fd));
+		ptr->ssl = ssl;
+		return ptr;
+	}
+
+	static TCPSocket::Ptr New(Poller *poller_,ThreadPool *pool_,int fd,SSL *ssl){
+		SetNoBlock(fd,true);
+		SetCloseOnExec(fd);
+		auto ptr = Ptr(new TCPSocket(poller_,pool_,fd));
+		ptr->ssl = ssl;
+		return ptr;
+	}
+
+#endif
+
+
 
 	TCPSocket::Ptr SetHighWater(const HighWaterCallback &callback,size_t highWaterSize_){					
 		std::lock_guard<std::mutex> guard(this->mtx);			
@@ -334,6 +362,11 @@ private:
 	void sendInWorker();
 	void recvInWorker();
 
+#ifdef USE_SSL
+	void sendInWorkerSSL();
+#endif
+
+
 	TCPSocket(Poller *poller_,int fd);
 
 	TCPSocket(Poller *poller_,ThreadPool *pool_,int fd);
@@ -397,6 +430,10 @@ private:
 	SendTimeoutCallback    sendTimeoutCallback_;
 	std::chrono::steady_clock::time_point lastSendTime;
 
+
+#ifdef USE_SSL
+	SSL                    *ssl;
+#endif
 
 };
 

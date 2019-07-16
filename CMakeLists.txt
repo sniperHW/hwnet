@@ -3,6 +3,14 @@ project(hwnet)
 
 #add_definitions(-DGATHER_RECV)
 
+find_library(LIB_OPENSSL NAMES crypto ssl)
+if(LIB_OPENSSL)
+  add_definitions(-DUSE_SSL)
+  SET( CMAKE_EXE_LINKER_FLAGS  "${CMAKE_SHARED_LINKER_FLAGS} -lssl -lcrypto")
+elseif()
+  message("not found openssl")
+endif()
+
 include(CheckCXXCompilerFlag)
 CHECK_CXX_COMPILER_FLAG("-std=c++17" COMPILER_SUPPORTS_CXX17)
 CHECK_CXX_COMPILER_FLAG("-std=c++14" COMPILER_SUPPORTS_CXX14)
@@ -36,8 +44,16 @@ set(src_list
   ${PROJECT_SOURCE_DIR}/src/net/SocketHelper.cpp
   ${PROJECT_SOURCE_DIR}/src/net/http/http_parser.c
   ${PROJECT_SOURCE_DIR}/src/net/http/Http.cpp 
-  ${PROJECT_SOURCE_DIR}/src/util/Timer.cpp        
+  ${PROJECT_SOURCE_DIR}/src/util/Timer.cpp      
 )
+
+if(LIB_OPENSSL)
+  set(src_list 
+    ${src_list}
+    ${PROJECT_SOURCE_DIR}/src/net/SSLAcceptor.cpp
+    ${PROJECT_SOURCE_DIR}/src/net/SSLConnector.cpp
+  )
+endif()
 
 if(APPLE) 
   add_definitions(-D_MACOS)
@@ -77,6 +93,12 @@ target_link_libraries(httpclient hwnet pthread)
 
 add_executable(testtimer test/testtimer.cpp)
 target_link_libraries(testtimer hwnet pthread)
+
+add_executable(sslserver test/sslserver.cpp)
+target_link_libraries(sslserver hwnet pthread)
+
+add_executable(sslclient test/sslclient.cpp)
+target_link_libraries(sslclient hwnet pthread)
 
 option(BUILD_DNS "Build dns" OFF)
 

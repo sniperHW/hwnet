@@ -13,6 +13,19 @@ namespace hwnet {
 
 int TCPSocket::timoutResolution = 1000;
 
+#ifdef USE_SSL
+
+static int ssl_again(int ssl_error) {
+	if(ssl_error == SSL_ERROR_WANT_WRITE || ssl_error == SSL_ERROR_WANT_READ) {
+		return 1;
+	}
+	else {
+		return 0;
+	}
+}
+
+#endif
+
 
 class sendContextPool {
 
@@ -102,6 +115,11 @@ TCPSocket::TCPSocket(Poller *poller_,int fd):fd(fd),err(0),flushCallback_(nullpt
 		rlistIdx = 0;
 		ptrRecvlist = &recvLists[rlistIdx];		
 #endif
+
+#ifdef USE_SSL
+		this->ssl = nullptr;
+#endif
+
 	}
 
 
@@ -116,7 +134,12 @@ TCPSocket::TCPSocket(Poller *poller_,ThreadPool *pool_,int fd):fd(fd),err(0),flu
 #ifdef GATHER_RECV
 		rlistIdx = 0;
 		ptrRecvlist = &recvLists[rlistIdx];		
-#endif		
+#endif	
+
+#ifdef USE_SSL
+		this->ssl = nullptr;
+#endif
+
 	}
 
 
@@ -125,6 +148,13 @@ TCPSocket::~TCPSocket() {
 		sp->cancel();
 	}
 	::close(this->fd);
+
+#ifdef USE_SSL
+	if(this->ssl) {
+		SSL_free(this->ssl);
+	}
+#endif
+
 }
 
 enum {
@@ -304,12 +334,22 @@ void TCPSocket::Do() {
 			poller_->PostTask(shared_from_this(),this->pool_);
 			return;
 		} else {
+
+
 			if(canRead_){
 				recvInWorker();
 			}
+
+#ifdef USE_SSL
+			if(canWrite_){
+				sendInWorkerSSL();
+			}
+#else
 			if(canWrite_){
 				sendInWorker();
 			}
+#endif
+
 		}
 	}
 }
@@ -487,6 +527,162 @@ void TCPSocket::OnActive(int event) {
 		poller_->PostTask(shared_from_this(),this->pool_);
 	}
 }
+
+
+#ifdef USE_SSL
+
+static int SSLwrite(SSL *ssl,const char *ptr,size_t len) {
+	errno = 0;
+	int bytes_transfer = TEMP_FAILURE_RETRY(SSL_write(ssl,(void*)ptr,len));
+	int ssl_error = SSL_get_error(ssl,bytes_transfer);
+	if(bytes_transfer <= 0 && ssl_again(ssl_error)){
+		errno = EAGAIN;
+		return -1;
+	}		
+	return bytes_transfer;
+}
+
+static int SSLread(SSL *ssl,const char *ptr,size_t len) {
+	errno = 0;
+	int bytes_transfer = TEMP_FAILURE_RETRY(SSL_read(ssl,(void*)ptr,len));
+	int ssl_error = SSL_get_error(ssl,bytes_transfer);
+	if(bytes_transfer <= 0 && ssl_again(ssl_error)){
+		errno = EAGAIN;
+		return -1;
+	}		
+	return bytes_transfer;
+}
+
+void TCPSocket::sendInWorkerSSL() {
+	if(this->ssl) {
+
+		auto t = 0;
+
+		FlushCallback flushCallback = nullptr;
+		ErrorCallback errorCallback = nullptr;
+		HighWaterCallback highWaterCallback = nullptr;
+		size_t bytes4Send_ = 0;
+		auto closedOnFlush_ = false;
+
+
+		this->mtx.lock();
+
+		
+		if(!this->canWrite()){
+			this->mtx.unlock();
+			return; 
+		} else {
+			if(!this->writeable && this->highWater()) {
+				t = 1;
+				bytes4Send_ = this->bytes4Send;
+				highWaterCallback = this->highWaterCallback_;
+			} else {
+				auto localSendlist = this->ptrSendlist;
+				auto localVer = this->writeableVer;
+				this->slistIdx = this->slistIdx == 0 ? 1 : 0;
+				this->ptrSendlist = &this->sendLists[this->slistIdx]; 
+
+				this->mtx.unlock();
+				
+				auto cur =  localSendlist->front();
+				auto totalBytes = cur->len;
+
+				int n = SSLwrite(this->ssl,cur->ptr,cur->len);
+
+				this->mtx.lock();
+
+				closedOnFlush_ = this->closedOnFlush;
+
+				if(n >= 0) {
+
+					if(this->sendTimeout > 0) {
+						this->lastSendTime = std::chrono::steady_clock::now();
+					}
+
+					if(n >= totalBytes) {
+						localSendlist->pop_front();
+					} else {
+						cur->ptr += n;
+						cur->ptr -= n;
+					}
+
+					this->ptrSendlist->add_front(localSendlist);
+					this->bytes4Send -= n;
+					if(this->ptrSendlist->empty()){
+						if(this->shutdown){
+							::shutdown(this->fd,SHUT_WR);
+						}
+						if(this->flushCallback_) {
+							flushCallback = this->flushCallback_;
+							t = 2;
+						}
+					}
+
+					if(n < totalBytes && this->writeableVer == localVer) {
+						this->writeable = false;
+					}
+
+				} else {
+					if(n < 0 && errno == EAGAIN) {
+						this->ptrSendlist->add_front(localSendlist);
+						if(this->writeableVer == localVer) {
+							this->writeable = false;
+						}
+					} else {
+						if(!this->closed){
+							errorCallback = this->errorCallback_;
+							this->socketError = true;
+							this->err = errno;
+							t = 3;
+						}
+					}
+				}
+			}
+		}
+
+
+		this->mtx.unlock();
+
+		switch(t){
+			case 1:{
+				if(highWaterCallback){
+					highWaterCallback(shared_from_this(),bytes4Send_);
+				}			
+			}
+			break;
+			case 2:{
+				if(flushCallback){
+					flushCallback(shared_from_this());
+				}
+				if(closedOnFlush_){
+					this->Close();
+				}			
+			}
+			break;
+			case 3:{
+				if(errorCallback) {
+					errorCallback(shared_from_this(),err);
+				} else {
+					this->Close();
+				}				
+			}
+			break;
+			default:{
+				if(closedOnFlush_) {
+					this->Close();
+				}
+				return;
+			}
+		}		
+
+
+
+	} else {
+		this->sendInWorker();
+	}
+}
+
+#endif
 
 void TCPSocket::sendInWorker() {
 	
@@ -764,14 +960,26 @@ void TCPSocket::recvInWorker() {
 			recvList.pop_front();
 			auto localVer = this->readableVer;
 			this->mtx.unlock();
+
+#ifdef USE_SSL
+			int n = 0;
+			if(this->ssl) {
+				n = SSLread(this->ssl,front->BuffPtr(),front->Len());
+			} else {
+				n = TEMP_FAILURE_RETRY(::read(this->fd,front->BuffPtr(),front->Len()));
+			}
+#else
 			int n = TEMP_FAILURE_RETRY(::read(this->fd,front->BuffPtr(),front->Len()));
-			if(n > 0) { 
+
+#endif
+
+			if(n > 0) {
+
 				if(recvCallback){
 					recvCallback(self,front,n);			
 				}
 
 				this->mtx.lock();
-
 				if(this->recvTimeout > 0) {
 					this->lastRecvTime = std::chrono::steady_clock::now();
 				}
@@ -781,8 +989,8 @@ void TCPSocket::recvInWorker() {
 						this->readable = false;
 					}
 				}
-
 				this->mtx.unlock();
+
 			} else {
 				this->mtx.lock();
 				if(n < 0 && errno == EAGAIN) {					
