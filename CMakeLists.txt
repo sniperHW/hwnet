@@ -30,13 +30,14 @@ else()
 endif()
 
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O2 -g -Wall")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O0 -g -Wall")
 set(LIBRARY_OUTPUT_PATH "${PROJECT_BINARY_DIR}/lib")
 set(EXECUTABLE_OUTPUT_PATH "${PROJECT_BINARY_DIR}/bin")
 include_directories("${PROJECT_SOURCE_DIR}/src/")
 include_directories("${PROJECT_SOURCE_DIR}/")
 include_directories("/usr/local/include")
 LINK_DIRECTORIES("/usr/local/lib")
+LINK_DIRECTORIES("${PROJECT_SOURCE_DIR}/src/redis/hiredis")
 
 set(src_list
   ${PROJECT_SOURCE_DIR}/src/net/TCPSocket.cpp
@@ -48,6 +49,10 @@ set(src_list
   ${PROJECT_SOURCE_DIR}/src/net/http/http_parser.c
   ${PROJECT_SOURCE_DIR}/src/net/http/Http.cpp 
   ${PROJECT_SOURCE_DIR}/src/util/Timer.cpp      
+)
+
+set(src_list_redis
+  ${PROJECT_SOURCE_DIR}/src/redis/RedisCli.cpp
 )
 
 if(LIB_OPENSSL)
@@ -73,6 +78,8 @@ elseif(UNIX)
 endif()
 
 add_library(hwnet STATIC ${src_list})
+add_library(hwredis STATIC ${src_list_redis})
+
 find_package(Threads REQUIRED)
 
 add_executable(benmark test/benmark.cpp)
@@ -118,4 +125,15 @@ if(COMPILER_SUPPORTS_CXX17)
   add_executable(broadcast2 test/broadcast2.cpp)
   target_link_libraries(broadcast2 hwnet pthread ${LIBSSL} ${LIBCRYPTO})
 endif()
+
+
+option(BUILD_REDIS "Build redis test" OFF)
+
+if(BUILD_REDIS)
+  add_executable(rediscli test/rediscli.cpp)
+  target_link_libraries(rediscli hwredis hwnet pthread hiredis ${LIBSSL} ${LIBCRYPTO})
+endif(BUILD_REDIS)
+
+
+
 

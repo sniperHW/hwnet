@@ -37,12 +37,15 @@ int Epoll::Add(const Channel::Ptr &channel,int flag) {
 	epoll_event ev = {0};
 	ev.data.ptr = channel.get();
 
-	if(flag & Poller::Read) {
-		ev.events |= EPOLLIN;
-	}
+	if(!(flag & Poller::DISABLE)) {
 
-	if(flag & Poller::Write) {
-		ev.events |= EPOLLOUT;
+		if(flag & Poller::Read) {
+			ev.events |= EPOLLIN;
+		}
+
+		if(flag & Poller::Write) {
+			ev.events |= EPOLLOUT;
+		}
 	}
 
 	int et = 0;
