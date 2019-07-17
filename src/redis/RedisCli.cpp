@@ -80,9 +80,8 @@ bool RedisConn::AsyncConnect(Poller *poller_,const std::string &ip,int port,
 		return false;
 	}
 
-	redisAsyncContext *ac = redisAsyncConnect("127.0.0.1", 6379);
+	redisAsyncContext *ac = redisAsyncConnect(ip.c_str(), port);
     if (ac->err) {
-        printf("Error: %s\n", ac->errstr);
         return false;
     }
 
