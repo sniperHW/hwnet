@@ -34,9 +34,12 @@ void getCallback(redisAsyncContext *c, void *r, void *privdata) {
 void connectCallback(const redis::RedisConn::Ptr &conn,const std::string &status) {
 	std::cout << "connectCallback:" << status << std::endl;
 
-    conn->redisAsyncCommand(nullptr, nullptr, "SET key huangwei");
+	if(status == "ok") {
 
-    conn->redisAsyncCommand(getCallback, (char*)"end-1", "GET key");
+    	conn->redisAsyncCommand(nullptr, nullptr, "SET key huangwei");
+
+    	conn->redisAsyncCommand(getCallback, (char*)"end-1", "GET key");
+    }
 }
 
 void disconnectCallback(const redis::RedisConn::Ptr&,const std::string &status) {
