@@ -44,7 +44,7 @@ void RedisConn::connectCallback(const redisAsyncContext *c, int status) {
 		conn->connectCallback_(ptr,"ok");
 	} else {
 		conn->poller_->Remove(ptr);
-		conn->connectCallback_(ptr,c->errstr);
+		conn->connectCallback_(nullptr,c->errstr);
 	}
 	conn->mtx.lock();
 }
@@ -52,6 +52,7 @@ void RedisConn::connectCallback(const redisAsyncContext *c, int status) {
 void RedisConn::disconnectCallback(const redisAsyncContext *c, int status) {
 	auto conn = (RedisConn*)c->data;
 	conn->mtx.unlock();
+	conn->closed = true;
 	auto ptr = conn->GetSharePtr();
 	conn->poller_->Remove(ptr);
 	if(status == REDIS_OK){
