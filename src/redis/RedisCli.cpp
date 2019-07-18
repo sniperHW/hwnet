@@ -131,8 +131,10 @@ int RedisConn::redisAsyncCommand(const RedisCallback &fn, void *privdata, const 
     	int status;
     	va_start(ap,format);
     	if(fn) {
-    		this->redisFns.push_back(fn);
     		status = redisvAsyncCommand(this->context,RedisConn::getCallback,privdata,format,ap);
+    		if(status == REDIS_OK) {
+    			this->redisFns.push_back(fn);
+    		}
     	} else {
     		status = redisvAsyncCommand(this->context,nullptr,privdata,format,ap);
     	}
