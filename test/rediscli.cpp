@@ -25,8 +25,7 @@ const char *ip = "localhost";
 const int   port = 6379;
 
 
-void getCallback(redisAsyncContext *c, void *r, void *privdata) {
-    redisReply *reply = (redisReply *)r;
+void getCallback(const redis::RedisConn::Ptr &conn,redisReply *reply, void *privdata) {
     if (reply == NULL) return;
     printf("argv[%s]: %s\n", (char*)privdata, reply->str);
 }

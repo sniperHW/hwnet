@@ -38,6 +38,7 @@ void RedisConn::redisCleanup(void *privdata) {
 
 void RedisConn::connectCallback(const redisAsyncContext *c, int status) {
 	auto conn = (RedisConn*)c->data;
+	conn->mtx.unlock();
 	auto ptr = conn->GetSharePtr();
 	if(status == REDIS_OK){
 		conn->connectCallback_(ptr,"ok");
@@ -45,17 +46,20 @@ void RedisConn::connectCallback(const redisAsyncContext *c, int status) {
 		conn->poller_->Remove(ptr);
 		conn->connectCallback_(ptr,c->errstr);
 	}
+	conn->mtx.lock();
 }
 
 void RedisConn::disconnectCallback(const redisAsyncContext *c, int status) {
 	auto conn = (RedisConn*)c->data;
+	conn->mtx.unlock();
 	auto ptr = conn->GetSharePtr();
 	conn->poller_->Remove(ptr);
 	if(status == REDIS_OK){
 		conn->disconnectedCallback_(ptr,"ok");
 	} else {
 		conn->disconnectedCallback_(ptr,c->errstr);
-	}   
+	}
+	conn->mtx.lock();   
 }
 
 
@@ -64,6 +68,8 @@ RedisConn::~RedisConn() {
 }
 
 void RedisConn::OnActive(int event) {
+	this->mtx.lock();
+
 	if(event & (Poller::ReadFlag() | Poller::ErrorFlag())) {
 		redisAsyncHandleRead(this->context);
 	}
@@ -71,6 +77,8 @@ void RedisConn::OnActive(int event) {
 	if(event & Poller::WriteFlag()) {
 		redisAsyncHandleWrite(this->context);
 	}
+
+	this->mtx.unlock();
 }
 
 bool RedisConn::AsyncConnect(Poller *poller_,const std::string &ip,int port,
@@ -107,24 +115,32 @@ bool RedisConn::AsyncConnect(Poller *poller_,const std::string &ip,int port,
     return true;
 }
 
+void RedisConn::getCallback(redisAsyncContext *c, void *r, void *privdata) {
+	auto conn = (RedisConn*)c->data;
+	RedisCallback &fn = conn->redisFns.front();
+	conn->mtx.unlock();
+	fn(conn->GetSharePtr(),(redisReply*)r,privdata);
+	conn->mtx.lock();
+	conn->redisFns.pop_front();
+}
 
-int RedisConn::redisAsyncCommand(redisCallbackFn *fn, void *privdata, const char *format, ...) {
+int RedisConn::redisAsyncCommand(const RedisCallback &fn, void *privdata, const char *format, ...) {
 	std::lock_guard<std::mutex> guard(this->mtx);
 	if(!this->closed){
     	va_list ap;
     	int status;
     	va_start(ap,format);
-    	status = redisvAsyncCommand(this->context,fn,privdata,format,ap);
+    	if(fn) {
+    		this->redisFns.push_back(fn);
+    		status = redisvAsyncCommand(this->context,RedisConn::getCallback,privdata,format,ap);
+    	} else {
+    		status = redisvAsyncCommand(this->context,nullptr,privdata,format,ap);
+    	}
     	va_end(ap);
     	return status;
 	} else {
 		return REDIS_ERR;
 	}
 }
-
-
-
-
-
 
 }}
