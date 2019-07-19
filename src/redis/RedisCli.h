@@ -31,7 +31,7 @@ public:
 		const ConnectCallback &connectCb,const DisconnectedCallback &disconnectCb);
 
 
-	int redisAsyncCommand(const RedisCallback &fn, void *privdata, const char *format, ...);
+	int redisAsyncCommand(RedisCallback &&fn, void *privdata, const char *format, ...);
 
 
 	void OnActive(int event);

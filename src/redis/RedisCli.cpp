@@ -125,7 +125,7 @@ void RedisConn::getCallback(redisAsyncContext *c, void *r, void *privdata) {
 	conn->redisFns.pop_front();
 }
 
-int RedisConn::redisAsyncCommand(const RedisCallback &fn, void *privdata, const char *format, ...) {
+int RedisConn::redisAsyncCommand(RedisCallback &&fn, void *privdata, const char *format, ...) {
 	std::lock_guard<std::mutex> guard(this->mtx);
 	if(!this->closed){
     	va_list ap;
@@ -134,7 +134,7 @@ int RedisConn::redisAsyncCommand(const RedisCallback &fn, void *privdata, const 
     	if(fn) {
     		status = redisvAsyncCommand(this->context,RedisConn::getCallback,privdata,format,ap);
     		if(status == REDIS_OK) {
-    			this->redisFns.push_back(fn);
+    			this->redisFns.push_back(std::move(fn));
     		}
     	} else {
     		status = redisvAsyncCommand(this->context,nullptr,privdata,format,ap);
