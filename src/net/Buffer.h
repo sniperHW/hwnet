@@ -14,8 +14,6 @@ class Buffer {
 
 public:
 
-	friend class TCPSocket;
-
 	typedef std::shared_ptr<Buffer> Ptr;
 
 
