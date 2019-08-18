@@ -47,7 +47,7 @@ private:
 };
 
 
-class ThreadPool {
+class ThreadPool final {
 
 	//任务队列
 	class TaskQueue {

@@ -21,7 +21,7 @@
 
 namespace hwnet {
 
-class Poller {
+class Poller final {
 
 private:
 
