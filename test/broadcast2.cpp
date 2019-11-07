@@ -116,8 +116,8 @@ private:
 
 	Buffer::Ptr buffer;
 	//如果不是绑定线程需要打开volatile	
-	/*volatile*/ size_t w;
-	/*volatile*/ size_t r;
+	size_t w;
+	size_t r;
 	size_t maxPacketSize;
 };
 
