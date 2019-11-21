@@ -35,11 +35,9 @@ int main(int argc,char **argv) {
 		auto recvBuff = Buffer::New(1024,1024);
 		sc->SetCloseCallback([](const TCPSocket::Ptr &ss){
 			std::cout << ss->LocalAddr().ToStr() << " <-> " << ss->RemoteAddr().ToStr() << " " << "leave" << std::endl;
-		});
-		sc->SetRecvCallback([](const TCPSocket::Ptr &ss,const Buffer::Ptr &buff,size_t n) {
+		})->SetRecvCallback([](const TCPSocket::Ptr &ss,const Buffer::Ptr &buff,size_t n) {
 			ss->Send(buff,n);	
-		});
-		sc->SetFlushCallback([recvBuff](const TCPSocket::Ptr &s){
+		})->SetFlushCallback([recvBuff](const TCPSocket::Ptr &s){
 			s->Recv(recvBuff);
 		});
 		sc->Start()->Recv(recvBuff);
