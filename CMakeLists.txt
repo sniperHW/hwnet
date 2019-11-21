@@ -94,11 +94,14 @@ target_link_libraries(benmark3 hwnet pthread ${LIBSSL} ${LIBCRYPTO})
 add_executable(broadcast test/broadcast.cpp)
 target_link_libraries(broadcast hwnet pthread ${LIBSSL} ${LIBCRYPTO})
 
-add_executable(httpserver test/httpserver.cpp)
+add_executable(httpserver example/httpserver.cpp)
 target_link_libraries(httpserver hwnet pthread ${LIBSSL} ${LIBCRYPTO})
 
-add_executable(httpclient test/httpclient.cpp)
+add_executable(httpclient example/httpclient.cpp)
 target_link_libraries(httpclient hwnet pthread ${LIBSSL} ${LIBCRYPTO})
+
+add_executable(echo example/echo.cpp)
+target_link_libraries(echo hwnet pthread ${LIBSSL} ${LIBCRYPTO})
 
 add_executable(testtimer test/testtimer.cpp)
 target_link_libraries(testtimer hwnet pthread ${LIBSSL} ${LIBCRYPTO})
@@ -106,10 +109,10 @@ target_link_libraries(testtimer hwnet pthread ${LIBSSL} ${LIBCRYPTO})
 
 if(LIB_OPENSSL)
 
-add_executable(sslserver test/sslserver.cpp)
+add_executable(sslserver example/sslserver.cpp)
 target_link_libraries(sslserver hwnet pthread ${LIBSSL} ${LIBCRYPTO})
 
-add_executable(sslclient test/sslclient.cpp)
+add_executable(sslclient example/sslclient.cpp)
 target_link_libraries(sslclient hwnet pthread ${LIBSSL} ${LIBCRYPTO})
 
 endif()
@@ -117,7 +120,7 @@ endif()
 option(BUILD_DNS "Build dns" OFF)
 
 if(BUILD_DNS)
-  add_executable(dns test/dns/Resolver.cpp test/dns/dns.cpp)
+  add_executable(dns example/dns/Resolver.cpp example/dns/dns.cpp)
   target_link_libraries(dns hwnet pthread cares ${LIBSSL} ${LIBCRYPTO})
 endif(BUILD_DNS)
 
@@ -130,7 +133,7 @@ endif()
 option(BUILD_REDIS "Build redis test" OFF)
 
 if(BUILD_REDIS)
-  add_executable(rediscli test/rediscli.cpp)
+  add_executable(rediscli example/rediscli.cpp)
   target_link_libraries(rediscli hwredis hwnet pthread hiredis ${LIBSSL} ${LIBCRYPTO})
 endif(BUILD_REDIS)
 
