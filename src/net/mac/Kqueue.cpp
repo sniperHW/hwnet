@@ -140,11 +140,11 @@ int Kqueue::RunOnce() {
 		for(auto i=0; i < nfds ; ++i) {
 			struct kevent *event = &this->events[i];
 			auto ev = 0;
+			if(event->flags & EV_EOF || event->flags & EV_ERROR) {
+				ev |= errorFlag;
+			}
 			if(event->filter == EVFILT_READ){
 				ev |= readFlag;
-				if(event->flags & EV_EOF) {
-					ev |= errorFlag;
-				}
 			}
 			if(event->filter == EVFILT_WRITE){
 				ev |= writeFlag;				
