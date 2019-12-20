@@ -55,7 +55,7 @@ public:
 	static const int Read    = 1 << 1;
 	static const int Write   = 1 << 2;
 	static const int ET      = 1 << 3;
-	static const int DISABLE = 1 << 4;
+	//static const int DISABLE = 1 << 4;
 
 	Poller():running(false),inited(false),closed(false),timerRoutine(util::TimerMgr::normal),clearWaitRemove(0){}
 
