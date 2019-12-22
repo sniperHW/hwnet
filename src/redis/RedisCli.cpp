@@ -4,35 +4,28 @@ namespace hwnet { namespace redis {
 
 void RedisConn::redisAddRead(void *privdata) {
     auto conn = (RedisConn*)privdata;
-    if(!(conn->events & Poller::Read)) {
-    	conn->events = conn->poller_->Enable(conn->GetSharePtr(),Poller::Read,conn->events);
-    }
+   	conn->poller_->Enable(conn->GetSharePtr(),Poller::Read);    
 }
 
 void RedisConn::redisDelRead(void *privdata) {
     auto conn = (RedisConn*)privdata;
-    if(conn->events & Poller::Read) {
-    	conn->events = conn->poller_->Disable(conn->GetSharePtr(),Poller::Read,conn->events);
-    }
+	conn->poller_->Disable(conn->GetSharePtr(),Poller::Read);
 }
 
 void RedisConn::redisAddWrite(void *privdata) {
     auto conn = (RedisConn*)privdata;
-    if(!(conn->events & Poller::Write)) {
-    	conn->events = conn->poller_->Enable(conn->GetSharePtr(),Poller::Write,conn->events);
-    }	
+	conn->poller_->Enable(conn->GetSharePtr(),Poller::Write);	
 }
 
 void RedisConn::redisDelWrite(void *privdata) {
     auto conn = (RedisConn*)privdata;
-	if(conn->events & Poller::Write) {    
-    	conn->events = conn->poller_->Disable(conn->GetSharePtr(),Poller::Write,conn->events);
-    }	
+	conn->poller_->Disable(conn->GetSharePtr(),Poller::Write);	
 }
 
 void RedisConn::redisCleanup(void *privdata) {
 	auto conn = (RedisConn*)privdata;
-	conn->events = conn->poller_->Disable(conn->GetSharePtr(), Poller::Read | Poller::Write,conn->events);
+	conn->poller_->Remove(conn->GetSharePtr());
+	//conn->poller_->Disable(conn->GetSharePtr(), Poller::Read | Poller::Write);
 }
 
 
@@ -111,7 +104,7 @@ bool RedisConn::AsyncConnect(Poller *poller_,const std::string &ip,int port,
     redisAsyncSetConnectCallback(ac,RedisConn::connectCallback);
     redisAsyncSetDisconnectCallback(ac,RedisConn::disconnectCallback);
 
-    conn->events = poller_->Add(conn,Poller::Read | Poller::Write);
+   	poller_->Add(conn,Poller::Read | Poller::Write);
 
     return true;
 }

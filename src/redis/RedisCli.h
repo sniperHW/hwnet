@@ -65,7 +65,7 @@ private:
 	static void disconnectCallback(const redisAsyncContext *c, int status);
 	static void getCallback(redisAsyncContext *c, void *r, void *privdata);
 
-	RedisConn():context(nullptr),poller_(nullptr),events(0),closed(false),connectCallback_(nullptr),disconnectedCallback_(nullptr){
+	RedisConn():context(nullptr),poller_(nullptr),closed(false),connectCallback_(nullptr),disconnectedCallback_(nullptr){
 
 	}
 
@@ -75,7 +75,6 @@ private:
 	mutable std::mutex mtx;
 	redisAsyncContext *context;
 	Poller             *poller_;
-	int                events;
 	bool               closed;
 
 	std::list<RedisCallback> redisFns;

@@ -112,21 +112,21 @@ void Poller::Remove(const Channel::Ptr &channel) {
 	this->notifyChannel_->notify();
 }
 
-int Poller::Enable(const Channel::Ptr &channel,int flag,int oldEvents) {
+void Poller::Enable(const Channel::Ptr &channel,int flag) {
 	std::lock_guard<std::mutex> guard(this->mtx);
 	if(this->channels.find(channel->Fd()) == this->channels.end()) {
-		return oldEvents;
+		return;
 	} else {
-		return poller_.Enable(channel,flag,oldEvents);
+		poller_.Enable(channel,flag);
 	}
 }
 
-int Poller::Disable(const Channel::Ptr &channel,int flag,int oldEvents) {
+void Poller::Disable(const Channel::Ptr &channel,int flag) {
 	std::lock_guard<std::mutex> guard(this->mtx);
 	if(this->channels.find(channel->Fd()) == this->channels.end()) {
-		return oldEvents;
+		return;
 	} else {	
-		return poller_.Disable(channel,flag,oldEvents);
+		return poller_.Disable(channel,flag);
 	}
 }
 

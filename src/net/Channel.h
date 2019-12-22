@@ -7,6 +7,10 @@ namespace hwnet {
 
 class Channel {
 
+#ifdef _LINUX
+friend class Epoll;
+#endif
+
 public:
 	typedef std::shared_ptr<Channel> Ptr;
 	
@@ -15,6 +19,12 @@ public:
 	virtual int  Fd() const = 0;
 	
 	virtual ~Channel() {}
+
+#ifdef _LINUX
+private:
+	int events;
+#endif
+
 };
 
 }

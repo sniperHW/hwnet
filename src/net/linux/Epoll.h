@@ -36,9 +36,9 @@ public:
 
 	void Remove(const Channel::Ptr &channel);
 
-	int Enable(const Channel::Ptr &channel,int flag,int oldEvents);
+	void Enable(const Channel::Ptr &channel,int flag);
 
-	int Disable(const Channel::Ptr &channel,int flag,int oldEvents);	
+	void Disable(const Channel::Ptr &channel,int flag);	
 
 	int  RunOnce();
 
