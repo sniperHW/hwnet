@@ -38,42 +38,37 @@ bool Kqueue::Init() {
 }
 
 int Kqueue::Add(const Channel::Ptr &channel,int flag) {
-	struct kevent ke = {0};
 
 	int et = 0;
 	if(flag & Poller::ET){
 		et = EV_CLEAR;
 	}
 
+	struct kevent ke[2] = {{0},{0}};
+
 	if(flag & Poller::Read) {
-		EV_SET(&ke, channel->Fd(), EVFILT_READ, EV_ADD | et , 0, 0, channel.get());
-		kevent(this->kfd, &ke, 1, nullptr, 0, nullptr);
+		EV_SET(&ke[0], channel->Fd(), EVFILT_READ, EV_ADD | et , 0, 0, channel.get());
+	} else {
+		EV_SET(&ke[0], channel->Fd(), EVFILT_READ, EV_ADD | et | EV_DISABLE, 0, 0, channel.get());	
 	}
 
 	if(flag & Poller::Write) {
-		EV_SET(&ke, channel->Fd(), EVFILT_WRITE, EV_ADD | et , 0, 0, channel.get());
-		kevent(this->kfd, &ke, 1, nullptr, 0, nullptr);
+		EV_SET(&ke[1], channel->Fd(), EVFILT_WRITE, EV_ADD | et , 0, 0, channel.get());
+	} else {
+		EV_SET(&ke[1], channel->Fd(), EVFILT_WRITE, EV_ADD | et | EV_DISABLE, 0, 0, channel.get());
 	}
+
+	kevent(this->kfd, ke, 2, nullptr, 0, nullptr);	
 
 	return 0;
 }
 
 void Kqueue::Remove(const Channel::Ptr &channel) {
-	
-	/*
-	不能一次移除两个事件，有的channel没有同时注册读写
 	struct kevent ke[2] = {{0},{0}};
 	::memset(&ke,0,sizeof(ke));
 	EV_SET(&ke[0], channel->Fd(), EVFILT_READ, EV_DELETE, 0, 0, nullptr);
 	EV_SET(&ke[1], channel->Fd(), EVFILT_WRITE, EV_DELETE, 0, 0, nullptr);
 	kevent(this->kfd, ke, 2, nullptr, 0, nullptr);	
-	*/	
-	struct kevent keR = {0};
-	struct kevent keW = {0};
-	EV_SET(&keR, channel->Fd(), EVFILT_READ, EV_DELETE, 0, 0, nullptr);
-	kevent(this->kfd, &keR, 1, nullptr, 0, nullptr);
-	EV_SET(&keW, channel->Fd(), EVFILT_WRITE, EV_DELETE, 0, 0, nullptr);
-	kevent(this->kfd, &keW, 1, nullptr, 0, nullptr);	
 }
 
 void Kqueue::Enable(const Channel::Ptr &channel,int flag) {
