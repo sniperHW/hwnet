@@ -495,6 +495,11 @@ void TCPSocket::Send(const Buffer::Ptr &buff,size_t len) {
 
 void TCPSocket::OnActive(int event) {
 	auto post = false;
+
+	if(event & Poller::WriteFlag()){
+		this->poller_->Disable(shared_from_this(),Poller::Write);
+	}
+
 	this->mtx.lock();
 	if(event & Poller::ReadFlag()) {
 		++this->readableVer;
@@ -563,6 +568,7 @@ void TCPSocket::sendInWorkerSSL() {
 		HighWaterCallback highWaterCallback = nullptr;
 		size_t bytes4Send_ = 0;
 		auto closedOnFlush_ = false;
+		auto enableWrite = false;
 
 
 		this->mtx.lock();
@@ -620,6 +626,8 @@ void TCPSocket::sendInWorkerSSL() {
 
 					if((size_t)n < totalBytes && this->writeableVer == localVer) {
 						this->writeable = false;
+						enableWrite = true;
+						//this->poller_->Enable(shared_from_this(),Poller::Write);
 					}
 
 				} else {
@@ -627,6 +635,8 @@ void TCPSocket::sendInWorkerSSL() {
 						this->ptrSendlist->add_front(localSendlist);
 						if(this->writeableVer == localVer) {
 							this->writeable = false;
+							enableWrite = true;
+							//this->poller_->Enable(shared_from_this(),Poller::Write);
 						}
 					} else {
 						if(!this->closed){
@@ -642,6 +652,10 @@ void TCPSocket::sendInWorkerSSL() {
 
 
 		this->mtx.unlock();
+
+		if(enableWrite) {
+			this->poller_->Enable(shared_from_this(),Poller::Write);
+		}		
 
 		switch(t){
 			case 1:{
@@ -693,6 +707,7 @@ void TCPSocket::sendInWorker() {
 	HighWaterCallback highWaterCallback = nullptr;
 	size_t bytes4Send_ = 0;
 	auto closedOnFlush_ = false;
+	auto enableWrite = false;
 
 
 	this->mtx.lock();
@@ -769,6 +784,9 @@ void TCPSocket::sendInWorker() {
 
 				if(n < totalBytes && this->writeableVer == localVer) {
 					this->writeable = false;
+					enableWrite = true;
+					//this->poller_->Enable(shared_from_this(),Poller::Write);
+					//printf("un writeable 1 fd:%d\n",this->fd);
 				}
 
 			} else {
@@ -776,6 +794,9 @@ void TCPSocket::sendInWorker() {
 					this->ptrSendlist->add_front(localSendlist);
 					if(this->writeableVer == localVer) {
 						this->writeable = false;
+						enableWrite = true;
+						//this->poller_->Enable(shared_from_this(),Poller::Write);
+						//printf("un writeable 2 fd:%d\n",this->fd);					
 					}
 				} else {
 					if(!this->closed){
@@ -791,6 +812,10 @@ void TCPSocket::sendInWorker() {
 
 
 	this->mtx.unlock();
+
+	if(enableWrite) {
+		this->poller_->Enable(shared_from_this(),Poller::Write);
+	}
 
 	switch(t){
 		case 1:{
