@@ -52,9 +52,12 @@ int Epoll::Add(const Channel::Ptr &channel,int flag) {
 
 	ev.events |= EPOLLERR | EPOLLHUP | EPOLLRDHUP | et;
 
-	epoll_ctl(this->epfd,EPOLL_CTL_ADD,channel->Fd(),&ev);
-
-	return 0;
+	if(0 == epoll_ctl(this->epfd,EPOLL_CTL_ADD,channel->Fd(),&ev)){
+		channel->event = ev.events;
+		return 0;
+	} else {
+		return -1;
+	}
 }
 
 void Epoll::Remove(const Channel::Ptr &channel) {
