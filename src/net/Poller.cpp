@@ -92,8 +92,11 @@ int Poller::Add(const Channel::Ptr &channel,int flag) {
 	if(this->channels.find(channel->Fd()) != this->channels.end()) {
 		return -1;
 	} else {
-		this->channels[channel->Fd()] = channel;
-		return poller_.Add(channel,flag);
+		int ret = poller_.Add(channel,flag);
+		if(0 == ret) {
+			this->channels[channel->Fd()] = channel;
+		}
+		return ret;
 	}
 }
 
@@ -107,9 +110,11 @@ void Poller::Remove(const Channel::Ptr &channel) {
 	this->waitRemove.push_back(channel);
 	this->channels.erase(it);
 	poller_.Remove(channel);
-	++clearWaitRemove;
+	auto needNotify = ++clearWaitRemove == 1;
 	this->mtx.unlock();
-	this->notifyChannel_->notify();
+	if(needNotify) {
+		this->notifyChannel_->notify();
+	}
 }
 
 void Poller::Enable(const Channel::Ptr &channel,int flag) {
