@@ -2,3 +2,15 @@
 *.o
 benmark.dSYM
 benmark
+CMakeCache.txt
+CMakeFiles/
+Makefile
+benmark2.dSYM/
+benmark3.dSYM/
+bin/
+broadcast.dSYM/
+broadcast2.dSYM/
+cmake_install.cmake
+out.txt
+test.cpp
+tt
