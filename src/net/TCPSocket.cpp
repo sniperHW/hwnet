@@ -302,7 +302,7 @@ TCPSocket::Ptr TCPSocket::SetRecvTimeoutCallback(util::milliseconds timeout, con
 void TCPSocket::Do() {
 	static const int maxLoop = 10;
 	auto doClose = false;	
-	this->tid = std::this_thread::get_id();
+	//this->tid = std::this_thread::get_id();
 	auto i = 0;
 	for( ;;i++) {
 		this->mtx.lock();
@@ -324,13 +324,13 @@ void TCPSocket::Do() {
 			if(doClose){
 				this->doClose();
 			}
-			this->tid = std::thread::id();
+			//this->tid = std::thread::id();
 			return;
 		}
 		this->mtx.unlock();
 		if(i >= maxLoop){
 			//执行次数过多了，暂停一下，将cpu让给其它任务执行
-			this->tid = std::thread::id();
+			//this->tid = std::thread::id();
 			poller_->PostTask(shared_from_this(),this->pool_);
 			return;
 		} else {
@@ -388,14 +388,10 @@ void TCPSocket::Recv(const Buffer::Ptr &buff) {
 	}
 
 	auto post = false;
-	{
-		if(std::this_thread::get_id() == this->tid){
-			_recv(buff,post);
-		} else {
-			std::lock_guard<std::mutex> guard(this->mtx);
-			_recv(buff,post);
-		}
-	}
+	this->mtx.lock();
+	_recv(buff,post);
+	this->mtx.unlock();
+
 	if(post) {			
 		poller_->PostTask(shared_from_this(),this->pool_);
 	}
@@ -436,12 +432,11 @@ void TCPSocket::SendAndClose(const Buffer::Ptr &buff,size_t len) {
 
 	auto post = false;
 	
-	if(std::this_thread::get_id() == this->tid){
-		_send(buff,len,true,post);
-	} else {
-		std::lock_guard<std::mutex> guard(this->mtx);
-		_send(buff,len,true,post);		
-	}
+
+	this->mtx.lock();
+	_send(buff,len,true,post);
+	this->mtx.unlock();		
+	
 	
 	if(post) {
 		poller_->PostTask(shared_from_this(),this->pool_);
@@ -480,12 +475,10 @@ void TCPSocket::Send(const Buffer::Ptr &buff,size_t len) {
 
 	auto post = false;
 	
-	if(std::this_thread::get_id() == this->tid){
-		_send(buff,len,false,post);
-	} else {
-		std::lock_guard<std::mutex> guard(this->mtx);
-		_send(buff,len,false,post);		
-	}
+	this->mtx.lock();
+	_send(buff,len,false,post);
+	this->mtx.unlock();		
+	
 	
 	if(post) {
 		poller_->PostTask(shared_from_this(),this->pool_);

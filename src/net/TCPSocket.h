@@ -418,7 +418,7 @@ private:
 	ThreadPool             *pool_;
 	any                    ud;
 	std::atomic_bool       started;
-	std::thread::id 	   tid;
+	//std::thread::id 	   tid;
 	std::list<std::function<void (void)>> closures;
 	
 	util::Timer::WeakPtr   timer;
