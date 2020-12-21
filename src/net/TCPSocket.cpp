@@ -561,7 +561,7 @@ void TCPSocket::sendInWorkerSSL() {
 		HighWaterCallback highWaterCallback = nullptr;
 		size_t bytes4Send_ = 0;
 		auto closedOnFlush_ = false;
-		auto enableWrite = false;
+		auto enableWrite = false;//是否需要调用Enable(Write)
 
 
 		this->mtx.lock();
@@ -620,7 +620,6 @@ void TCPSocket::sendInWorkerSSL() {
 					if((size_t)n < totalBytes && this->writeableVer == localVer) {
 						this->writeable = false;
 						enableWrite = true;
-						//this->poller_->Enable(shared_from_this(),Poller::Write);
 					}
 
 				} else {
@@ -629,7 +628,6 @@ void TCPSocket::sendInWorkerSSL() {
 						if(this->writeableVer == localVer) {
 							this->writeable = false;
 							enableWrite = true;
-							//this->poller_->Enable(shared_from_this(),Poller::Write);
 						}
 					} else {
 						if(!this->closed){
@@ -700,7 +698,7 @@ void TCPSocket::sendInWorker() {
 	HighWaterCallback highWaterCallback = nullptr;
 	size_t bytes4Send_ = 0;
 	auto closedOnFlush_ = false;
-	auto enableWrite = false;
+	auto enableWrite = false;//是否需要调用Enable(Write)
 
 
 	this->mtx.lock();
@@ -778,8 +776,6 @@ void TCPSocket::sendInWorker() {
 				if(n < totalBytes && this->writeableVer == localVer) {
 					this->writeable = false;
 					enableWrite = true;
-					//this->poller_->Enable(shared_from_this(),Poller::Write);
-					//printf("un writeable 1 fd:%d\n",this->fd);
 				}
 
 			} else {
@@ -787,9 +783,7 @@ void TCPSocket::sendInWorker() {
 					this->ptrSendlist->add_front(localSendlist);
 					if(this->writeableVer == localVer) {
 						this->writeable = false;
-						enableWrite = true;
-						//this->poller_->Enable(shared_from_this(),Poller::Write);
-						//printf("un writeable 2 fd:%d\n",this->fd);					
+						enableWrite = true;				
 					}
 				} else {
 					if(!this->closed){
