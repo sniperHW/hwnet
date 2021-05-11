@@ -617,11 +617,6 @@ void TCPSocket::sendInWorkerSSL() {
 						}
 					}
 
-					if((size_t)n < totalBytes && this->writeableVer == localVer) {
-						this->writeable = false;
-						enableWrite = true;
-					}
-
 				} else {
 					if(n < 0 && errno == EAGAIN) {
 						this->ptrSendlist->add_front(localSendlist);
@@ -773,11 +768,6 @@ void TCPSocket::sendInWorker() {
 					}
 				}
 
-				if(n < totalBytes && this->writeableVer == localVer) {
-					this->writeable = false;
-					enableWrite = true;
-				}
-
 			} else {
 				if(n < 0 && errno == EAGAIN) {
 					this->ptrSendlist->add_front(localSendlist);
@@ -908,12 +898,6 @@ void TCPSocket::recvInWorker() {
 						localRecvlist->pop_back();
 					}
 
-					if(n != totalBytes) {
-						if(localVer == this->readableVer) {
-							this->readable = false;
-						}					
-					}
-
 					this->mtx.unlock();
 
 			} else {
@@ -994,12 +978,6 @@ void TCPSocket::recvInWorker() {
 				this->mtx.lock();
 				if(this->recvTimeout > 0) {
 					this->lastRecvTime = std::chrono::steady_clock::now();
-				}
-
-				if(size_t(n) < front->Len()) {
-					if(localVer == this->readableVer) {
-						this->readable = false;
-					}
 				}
 				this->mtx.unlock();
 
