@@ -551,10 +551,19 @@ static int SSLread(SSL *ssl,const char *ptr,size_t len) {
 	return bytes_transfer;
 }
 
+
+enum {
+	nothing,
+	callHighwaterCallback,
+	callFlushCallback,
+	callErrorCallback,
+};
+
+
 void TCPSocket::sendInWorkerSSL() {
 	if(this->ssl) {
 
-		auto t = 0;
+		auto cb = nothing;
 
 		FlushCallback flushCallback = nullptr;
 		ErrorCallback errorCallback = nullptr;
@@ -572,7 +581,7 @@ void TCPSocket::sendInWorkerSSL() {
 			return; 
 		} else {
 			if(!this->writeable && this->highWater()) {
-				t = 1;
+				cb = callHighwaterCallback;
 				bytes4Send_ = this->bytes4Send;
 				highWaterCallback = this->highWaterCallback_;
 			} else {
@@ -613,7 +622,7 @@ void TCPSocket::sendInWorkerSSL() {
 						}
 						if(this->flushCallback_) {
 							flushCallback = this->flushCallback_;
-							t = 2;
+							cb = callFlushCallback;
 						}
 					}
 
@@ -629,7 +638,7 @@ void TCPSocket::sendInWorkerSSL() {
 							errorCallback = this->errorCallback_;
 							this->socketError = true;
 							this->err = errno;
-							t = 3;
+							cb = callErrorCallback;
 						}
 					}
 				}
@@ -643,14 +652,14 @@ void TCPSocket::sendInWorkerSSL() {
 			this->poller_->Enable(shared_from_this(),Poller::Write);
 		}		
 
-		switch(t){
-			case 1:{
+		switch(cb){
+			case callHighwaterCallback:{
 				if(highWaterCallback){
 					highWaterCallback(shared_from_this(),bytes4Send_);
 				}			
 			}
 			break;
-			case 2:{
+			case callFlushCallback:{
 				if(flushCallback){
 					flushCallback(shared_from_this());
 				}
@@ -659,7 +668,7 @@ void TCPSocket::sendInWorkerSSL() {
 				}			
 			}
 			break;
-			case 3:{
+			case callErrorCallback:{
 				if(errorCallback) {
 					errorCallback(shared_from_this(),err);
 				} else {
@@ -668,14 +677,9 @@ void TCPSocket::sendInWorkerSSL() {
 			}
 			break;
 			default:{
-				if(closedOnFlush_) {
-					this->Close();
-				}
 				return;
 			}
 		}		
-
-
 
 	} else {
 		this->sendInWorker();
@@ -686,7 +690,7 @@ void TCPSocket::sendInWorkerSSL() {
 
 void TCPSocket::sendInWorker() {
 	
-	auto t = 0;
+	auto cb = nothing;
 
 	FlushCallback flushCallback = nullptr;
 	ErrorCallback errorCallback = nullptr;
@@ -704,7 +708,7 @@ void TCPSocket::sendInWorker() {
 		return; 
 	} else {
 		if(!this->writeable && this->highWater()) {
-			t = 1;
+			cb = callHighwaterCallback;
 			bytes4Send_ = this->bytes4Send;
 			highWaterCallback = this->highWaterCallback_;
 		} else {
@@ -764,7 +768,7 @@ void TCPSocket::sendInWorker() {
 					}
 					if(this->flushCallback_) {
 						flushCallback = this->flushCallback_;
-						t = 2;
+						cb = callFlushCallback;
 					}
 				}
 
@@ -780,7 +784,7 @@ void TCPSocket::sendInWorker() {
 						errorCallback = this->errorCallback_;
 						this->socketError = true;
 						this->err = errno;
-						t = 3;
+						cb = callErrorCallback;
 					}
 				}
 			}
@@ -794,14 +798,14 @@ void TCPSocket::sendInWorker() {
 		this->poller_->Enable(shared_from_this(),Poller::Write);
 	}
 
-	switch(t){
-		case 1:{
+	switch(cb){
+		case callHighwaterCallback:{
 			if(highWaterCallback){
 				highWaterCallback(shared_from_this(),bytes4Send_);
 			}			
 		}
 		break;
-		case 2:{
+		case callFlushCallback:{
 			if(flushCallback){
 				flushCallback(shared_from_this());
 			}
@@ -810,7 +814,7 @@ void TCPSocket::sendInWorker() {
 			}			
 		}
 		break;
-		case 3:{
+		case callErrorCallback:{
 			if(errorCallback) {
 				errorCallback(shared_from_this(),err);
 			} else {
@@ -819,9 +823,6 @@ void TCPSocket::sendInWorker() {
 		}
 		break;
 		default:{
-			if(closedOnFlush_) {
-				this->Close();
-			}
 			return;
 		}
 	}
