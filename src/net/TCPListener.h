@@ -26,7 +26,7 @@ public:
 		if(!poller_) {
 			return nullptr;
 		} else { 
-			return TCPListener::Ptr(new TCPListener(poller_,addr));
+			return std::make_shared<TCPListener>(poller_,addr);
 		}
 	}
 
