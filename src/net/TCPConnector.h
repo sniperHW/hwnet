@@ -23,7 +23,7 @@ public:
 		if(!poller_) {
 			return nullptr;
 		} else { 
-			return TCPConnector::Ptr(new TCPConnector(poller_,remote,local));
+			return std::make_shared<TCPConnector>(poller_,remote,local);
 		}
 	}
 
