@@ -39,12 +39,7 @@ private:
 public:
 
 	static Buffer::Ptr New(size_t cap,size_t len = 0) {
-		Buffer *buff_ = new Buffer(cap,len);
-		if(buff_) {
-			return Ptr(buff_);
-		} else {
-			return nullptr;
-		}		
+		return std::make_shared<Buffer>(cap,len);	
 	}
 
 	static Buffer::Ptr New(const char *str, size_t len) {
