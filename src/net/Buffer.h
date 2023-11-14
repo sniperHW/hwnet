@@ -162,7 +162,7 @@ private:
 			l = cap_;
 		}
 
-		this->buff = bytes::Ptr(new bytes(cap_));
+		this->buff = std::make_shared<bytes>(cap_);
 		this->cap  = cap_;
 		this->len  = l;
 	}
