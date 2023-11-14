@@ -185,13 +185,13 @@ public:
 	static TCPSocket::Ptr New(Poller *poller_,int fd){
 		SetNoBlock(fd,true);
 		SetCloseOnExec(fd);
-		return Ptr(new TCPSocket(poller_,fd));
+		return std::make_shared<TCPSocket>(poller_,fd);
 	}
 
 	static TCPSocket::Ptr New(Poller *poller_,ThreadPool *pool_,int fd){
 		SetNoBlock(fd,true);
 		SetCloseOnExec(fd);
-		return Ptr(new TCPSocket(poller_,pool_,fd));
+		return std::make_shared<TCPSocket>(poller_,pool_,fd);
 	}
 
 #ifdef USE_SSL
@@ -199,7 +199,7 @@ public:
 	static TCPSocket::Ptr New(Poller *poller_,int fd,SSL *ssl){
 		SetNoBlock(fd,true);
 		SetCloseOnExec(fd);
-		auto ptr = Ptr(new TCPSocket(poller_,fd));
+		auto ptr = std::make_shared<TCPSocket>(poller_,fd);
 		ptr->ssl = ssl;
 		return ptr;
 	}
@@ -207,7 +207,7 @@ public:
 	static TCPSocket::Ptr New(Poller *poller_,ThreadPool *pool_,int fd,SSL *ssl){
 		SetNoBlock(fd,true);
 		SetCloseOnExec(fd);
-		auto ptr = Ptr(new TCPSocket(poller_,pool_,fd));
+		auto ptr = std::make_shared<TCPSocket>(poller_,pool_,fd);
 		ptr->ssl = ssl;
 		return ptr;
 	}
