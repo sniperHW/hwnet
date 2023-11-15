@@ -182,6 +182,11 @@ private:
 
 
 public:
+
+	TCPSocket(Poller *poller_,int fd);
+
+	TCPSocket(Poller *poller_,ThreadPool *pool_,int fd);
+
 	static TCPSocket::Ptr New(Poller *poller_,int fd){
 		SetNoBlock(fd,true);
 		SetCloseOnExec(fd);
@@ -367,10 +372,6 @@ private:
 	void sendInWorkerSSL();
 #endif
 
-
-	TCPSocket(Poller *poller_,int fd);
-
-	TCPSocket(Poller *poller_,ThreadPool *pool_,int fd);
 
 	TCPSocket(const TCPSocket&) = delete;
 	TCPSocket& operator = (const TCPSocket&) = delete;

@@ -193,6 +193,31 @@ public:
 
 	typedef std::function<void (HttpResponse::Ptr &)> OnResponse;
 
+	HttpSession(TCPSocket::Ptr &s,int side):s(s),side(side) {
+		::memset(&this->parser,0,sizeof(this->parser));
+		::memset(&this->settings,0,sizeof(this->settings));
+		this->parser.data = this;
+		this->settings.on_message_begin = on_message_begin;
+		this->settings.on_url = on_url;
+		this->settings.on_status = on_status;
+		this->settings.on_header_field = on_header_field;
+		this->settings.on_header_value = on_header_value;
+		this->settings.on_headers_complete = on_headers_complete;
+		this->settings.on_body = on_body;
+		this->settings.on_message_complete = on_message_complete;
+
+		if(this->side == ServerSide) {
+			http_parser_init(&this->parser,HTTP_REQUEST);
+		} else {
+			http_parser_init(&this->parser,HTTP_RESPONSE);
+		}
+
+		this->recvbuff = Buffer::New(65535,65535);
+		s->SetUserData(const_cast<HttpSession*>(this));
+		s->SetRecvCallback(onData)->SetCloseCallback(onClose)->SetErrorCallback(onError);
+
+	}	
+
 	static HttpSession::Ptr New(TCPSocket::Ptr &s,int side){
 		return std::make_shared<HttpSession>(s,side);
 	}	
@@ -238,31 +263,6 @@ private:
 	static void onClose(const TCPSocket::Ptr &ss);
 	static void onError(const TCPSocket::Ptr &ss,int err);
 
-
-	HttpSession(TCPSocket::Ptr &s,int side):s(s),side(side) {
-		::memset(&this->parser,0,sizeof(this->parser));
-		::memset(&this->settings,0,sizeof(this->settings));
-		this->parser.data = this;
-		this->settings.on_message_begin = on_message_begin;
-		this->settings.on_url = on_url;
-		this->settings.on_status = on_status;
-		this->settings.on_header_field = on_header_field;
-		this->settings.on_header_value = on_header_value;
-		this->settings.on_headers_complete = on_headers_complete;
-		this->settings.on_body = on_body;
-		this->settings.on_message_complete = on_message_complete;
-
-		if(this->side == ServerSide) {
-			http_parser_init(&this->parser,HTTP_REQUEST);
-		} else {
-			http_parser_init(&this->parser,HTTP_RESPONSE);
-		}
-
-		this->recvbuff = Buffer::New(65535,65535);
-		s->SetUserData(const_cast<HttpSession*>(this));
-		s->SetRecvCallback(onData)->SetCloseCallback(onClose)->SetErrorCallback(onError);
-
-	}
 
 	void Recv();
 

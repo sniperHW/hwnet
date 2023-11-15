@@ -38,6 +38,23 @@ private:
 
 public:
 
+	Buffer(size_t cap_,size_t l):b(0),len(0){
+		if(cap_ < 16) {
+			cap_ = 16;
+		}
+		
+		if(l > cap_) {
+			l = cap_;
+		}
+
+		this->buff = std::make_shared<bytes>(cap_);
+		this->cap  = cap_;
+		this->len  = l;
+	}
+
+	Buffer():b(0),len(0),cap(0){}
+
+
 	static Buffer::Ptr New(size_t cap,size_t len = 0) {
 		return std::make_shared<Buffer>(cap,len);	
 	}
@@ -153,23 +170,6 @@ public:
 	}
 
 private:
-
-	Buffer(size_t cap_,size_t l):b(0),len(0){
-		if(cap_ < 16) {
-			cap_ = 16;
-		}
-		
-		if(l > cap_) {
-			l = cap_;
-		}
-
-		this->buff = std::make_shared<bytes>(cap_);
-		this->cap  = cap_;
-		this->len  = l;
-	}
-
-	Buffer():b(0),len(0),cap(0){}
-
 	Buffer(const Buffer&) = delete;
 	Buffer& operator = (const Buffer&) = delete;	
 

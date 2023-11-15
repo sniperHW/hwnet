@@ -50,6 +50,11 @@ public:
 		}		
 	}
 
+	SSLHandshake(Poller *poller_,int fd,const OnHandshakeOK &onOK,const OnError &onErr):
+		fd(fd),poller_(poller_),onOK_(onOK),onError_(onErr),ver(0),doing(false),socketError(false),err(0) {
+
+	}
+
 private:
 
 	static bool New(Poller *poller_,int fd,SSL_CTX *ssl_ctx,const OnHandshakeOK &onOK,const OnError &onErr,handshakeMethod method) {
@@ -77,11 +82,6 @@ private:
 		}
 	}
 
-
-	SSLHandshake(Poller *poller_,int fd,const OnHandshakeOK &onOK,const OnError &onErr):
-		fd(fd),poller_(poller_),onOK_(onOK),onError_(onErr),ver(0),doing(false),socketError(false),err(0) {
-
-	}
 
 	SSLHandshake(const SSLHandshake&) = delete;
 	SSLHandshake& operator = (const SSLHandshake&) = delete;

@@ -21,6 +21,9 @@ public:
 
 	typedef std::function<void (const Ptr&,int)> OnError;
 
+	TCPListener(Poller *poller_,const Addr &addr):fd(-1),poller_(poller_),addr(addr),started(false),stop(false),readableVer(0),doing(false){
+
+	}
 
 	static TCPListener::Ptr New(Poller *poller_,const Addr &addr) {
 		if(!poller_) {
@@ -50,10 +53,6 @@ private:
 	bool _start(const OnNewConn &onNewConn,const OnError &onError = nullptr);
 
 	int accept(int *fd,struct sockaddr *addr,socklen_t *len);
-
-	TCPListener(Poller *poller_,const Addr &addr):fd(-1),poller_(poller_),addr(addr),started(false),stop(false),readableVer(0),doing(false){
-
-	}
 
 	TCPListener(const TCPListener&) = delete;
 	TCPListener& operator = (const TCPListener&) = delete;

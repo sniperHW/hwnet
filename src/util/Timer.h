@@ -96,7 +96,7 @@ public:
     Timer::WeakPtr addTimer(milliseconds now,milliseconds timeout, F&& callback, TArgs&& ...args)
     {        
 	auto timer = std::make_shared<Timer>(now + timeout,timeout, 
-	    false,std::bind(std::forward<F>(callback), std::placeholders::_1, std::forward<TArgs>(args)...)));   
+	    false,std::bind(std::forward<F>(callback), std::placeholders::_1, std::forward<TArgs>(args)...));   
 	this->insertLock(timer);
         return timer;
     }
@@ -105,7 +105,7 @@ public:
     Timer::WeakPtr addTimerOnce(milliseconds now,milliseconds timeout, F&& callback, TArgs&& ...args)
     {
         auto timer = std::make_shared<Timer>(now + timeout,timeout, 
-        	true,std::bind(std::forward<F>(callback), std::placeholders::_1, std::forward<TArgs>(args)...)));      
+        	true,std::bind(std::forward<F>(callback), std::placeholders::_1, std::forward<TArgs>(args)...));      
         this->insertLock(timer);
         return timer;
     }
