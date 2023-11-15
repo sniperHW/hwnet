@@ -31,7 +31,7 @@ public:
 
 	template<typename F, typename ...TArgs>
 	static ClosureTask::Ptr New(F&& callback, TArgs&& ...args){
-		return ClosureTask::Ptr(new ClosureTask(std::bind(std::forward<F>(callback),std::forward<TArgs>(args)...)));
+		return std::make_shared<ClosureTask>(std::bind(std::forward<F>(callback),std::forward<TArgs>(args)...));
 	}
 
 	void Do(){
