@@ -194,7 +194,7 @@ public:
 	typedef std::function<void (HttpResponse::Ptr &)> OnResponse;
 
 	static HttpSession::Ptr New(TCPSocket::Ptr &s,int side){
-		return Ptr(new HttpSession(s,side));
+		return std::make_shared<HttpSession>(s,side));
 	}	
 
 	void Start(const OnRequest &onRequest) {
