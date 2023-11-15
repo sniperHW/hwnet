@@ -66,12 +66,13 @@ public:
 		if(s >= e) return nullptr;
 		if(e > o->len) return nullptr;
 
-		Buffer *buff_ = new Buffer;
+		
+		auto buff_ = std::make_shared<Buffer>();
 		buff_->buff = o->buff;
 		buff_->b = s;
 		buff_->cap = o->cap - s;
 		buff_->len = e - s;
-		return Ptr(buff_);
+		return buff_;
 	}
 
 	std::string ToString() {
@@ -95,7 +96,7 @@ public:
 
 		if(newcap != this->cap) {
 			//扩容
-			bytes::Ptr newbuff = bytes::Ptr(new bytes(newcap));
+			bytes::Ptr newbuff = std::make_shared<bytes>(newcap);
 			if(s > 0){
 				memcpy(newbuff->ptr,this->buff->ptr + this->b,s);
 			}
@@ -128,7 +129,7 @@ public:
 			if(need > this->cap) {
 				//扩容
 				size_t cap_ = need;
-				bytes::Ptr newbuff = bytes::Ptr(new bytes(cap_)); 
+				bytes::Ptr newbuff = std::make_shared<bytes>(cap_);
 				memcpy(newbuff->ptr,this->buff->ptr + this->b,this->len);
 				this->cap = cap_;
 				this->buff = newbuff;
