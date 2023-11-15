@@ -94,17 +94,17 @@ public:
 
     template<typename F, typename ...TArgs>
     Timer::WeakPtr addTimer(milliseconds now,milliseconds timeout, F&& callback, TArgs&& ...args)
-    {
-        auto timer = Timer::Ptr(new Timer(now + timeout,timeout,
-        	false,std::bind(std::forward<F>(callback), std::placeholders::_1, std::forward<TArgs>(args)...)));
-        this->insertLock(timer);
+    {        
+	auto timer = std::make_shared<Timer>(now + timeout,timeout, 
+	    false,std::bind(std::forward<F>(callback), std::placeholders::_1, std::forward<TArgs>(args)...)));   
+	this->insertLock(timer);
         return timer;
     }
 
     template<typename F, typename ...TArgs>
     Timer::WeakPtr addTimerOnce(milliseconds now,milliseconds timeout, F&& callback, TArgs&& ...args)
     {
-        auto timer = Timer::Ptr(new Timer(now + timeout,timeout,
+        auto timer = std::make_shared<Timer>(now + timeout,timeout, 
         	true,std::bind(std::forward<F>(callback), std::placeholders::_1, std::forward<TArgs>(args)...)));      
         this->insertLock(timer);
         return timer;
