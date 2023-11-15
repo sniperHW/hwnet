@@ -56,7 +56,7 @@ private:
 		if(!poller_ || !ssl_ctx || !onOK) {
 			return false;
 		} else { 
-			auto ptr = SSLHandshake::Ptr(new SSLHandshake(poller_,fd,onOK,onErr));
+			auto ptr = std::make_shared<SSLHandshake>(poller_,fd,onOK,onErr);
 			SetNoBlock(fd,true);
 
 			ptr->ssl = SSL_new(ssl_ctx);
