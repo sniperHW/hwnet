@@ -526,6 +526,14 @@ void TCPSocket::OnActive(int event) {
 	}
 }
 
+enum {
+	nothing,
+	callHighwaterCallback,
+	callFlushCallback,
+	callErrorCallback,
+};
+
+
 
 #ifdef USE_SSL
 
@@ -550,14 +558,6 @@ static int SSLread(SSL *ssl,const char *ptr,size_t len) {
 	}		
 	return bytes_transfer;
 }
-
-
-enum {
-	nothing,
-	callHighwaterCallback,
-	callFlushCallback,
-	callErrorCallback,
-};
 
 
 void TCPSocket::sendInWorkerSSL() {

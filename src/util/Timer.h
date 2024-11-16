@@ -44,12 +44,11 @@ public:
 
     int cancel();
 
-private:
-
-
-    Timer(const milliseconds &ExpiredTime, const milliseconds &timeout, bool once,Callback &&cb):
+	Timer(const milliseconds &ExpiredTime, const milliseconds &timeout, bool once,Callback &&cb):
     	mCallback(cb),mExpiredTime(ExpiredTime),mTimeout(timeout),mOnce(once),mMgr(nullptr),mIndex(0),mStatus(0){
     	}
+
+private:
 
     milliseconds getLeftTime(const milliseconds &now) const {
     	if(now >= mExpiredTime) {

@@ -34,15 +34,14 @@ public:
 		return std::make_shared<ClosureTask>(std::bind(std::forward<F>(callback),std::forward<TArgs>(args)...));
 	}
 
-	void Do(){
-		mCallback();
-	}
-private:
-
 	explicit ClosureTask(const Callback &cb):mCallback(cb){
 
 	}
 
+	void Do(){
+		mCallback();
+	}
+private:
 	Callback mCallback;
 };
 
