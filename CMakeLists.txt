@@ -83,28 +83,28 @@ add_library(hwredis STATIC ${src_list_redis})
 find_package(Threads REQUIRED)
 
 add_executable(benmark test/benmark.cpp)
-target_link_libraries(benmark hwnet pthread ${LIBSSL} ${LIBCRYPTO})
+target_link_libraries(benmark hwnet pthread)
 
 add_executable(benmark2 test/benmark2.cpp)
-target_link_libraries(benmark2 hwnet pthread ${LIBSSL} ${LIBCRYPTO})
+target_link_libraries(benmark2 hwnet pthread)
 
 add_executable(benmark3 test/benmark3.cpp)
-target_link_libraries(benmark3 hwnet pthread ${LIBSSL} ${LIBCRYPTO})
+target_link_libraries(benmark3 hwnet pthread)
 
 add_executable(broadcast test/broadcast.cpp)
-target_link_libraries(broadcast hwnet pthread ${LIBSSL} ${LIBCRYPTO})
+target_link_libraries(broadcast hwnet pthread)
 
 add_executable(httpserver example/httpserver.cpp)
-target_link_libraries(httpserver hwnet pthread ${LIBSSL} ${LIBCRYPTO})
+target_link_libraries(httpserver hwnet pthread)
 
 add_executable(httpclient example/httpclient.cpp)
-target_link_libraries(httpclient hwnet pthread ${LIBSSL} ${LIBCRYPTO})
+target_link_libraries(httpclient hwnet pthread)
 
 add_executable(echo example/echo.cpp)
-target_link_libraries(echo hwnet pthread ${LIBSSL} ${LIBCRYPTO})
+target_link_libraries(echo hwnet pthread)
 
 add_executable(testtimer test/testtimer.cpp)
-target_link_libraries(testtimer hwnet pthread ${LIBSSL} ${LIBCRYPTO})
+target_link_libraries(testtimer hwnet pthread)
 
 
 if(LIB_OPENSSL)
@@ -121,12 +121,12 @@ option(BUILD_DNS "Build dns" OFF)
 
 if(BUILD_DNS)
   add_executable(dns example/dns/Resolver.cpp example/dns/dns.cpp)
-  target_link_libraries(dns hwnet pthread cares ${LIBSSL} ${LIBCRYPTO})
+  target_link_libraries(dns hwnet pthread cares)
 endif(BUILD_DNS)
 
 if(COMPILER_SUPPORTS_CXX17)
   add_executable(broadcast2 test/broadcast2.cpp)
-  target_link_libraries(broadcast2 hwnet pthread ${LIBSSL} ${LIBCRYPTO})
+  target_link_libraries(broadcast2 hwnet pthread)
 endif()
 
 
@@ -134,7 +134,7 @@ option(BUILD_REDIS "Build redis test" OFF)
 
 if(BUILD_REDIS)
   add_executable(rediscli example/rediscli.cpp)
-  target_link_libraries(rediscli hwredis hwnet pthread hiredis ${LIBSSL} ${LIBCRYPTO})
+  target_link_libraries(rediscli hwredis hwnet pthread hiredis)
 endif(BUILD_REDIS)
 
 
